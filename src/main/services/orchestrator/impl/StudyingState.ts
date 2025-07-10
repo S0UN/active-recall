@@ -2,17 +2,17 @@ import { IOrchestratorState } from '../IOrchestratorState';
 import { Orchestrator } from '../../Orchestrator';
 
 export class StudyingState implements IOrchestratorState {
-  constructor(private ctx: Orchestrator) {}
+  constructor(private orchestrator: Orchestrator) {}
   onEnter() {
-    // Placeholder
+    this.orchestrator.startStudyingOcrPolling();
   }
   onWindowChange(key: string) {
     // Placeholder
   }
   onOcrTick() {
-    // Placeholder
+    this.orchestrator.runFullPipeline(this.orchestrator.currentKey!);
   }
   onExit() {
-    // Placeholder
+    this.orchestrator.stopStudyingOcrPolling();
   }
 }

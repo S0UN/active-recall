@@ -20,6 +20,7 @@ import { Orchestrator } from './services/Orchestrator';
 import { VisionService } from './services/processing/impl/VisionService';
 import { IPollingConfig } from './configs/IPollingConfig';
 import { ConfigService } from './configs/ConfigService';
+import { ICache } from './utils/ICache';
 
 // Register the logger first as it might be used by other services during initialization
 container.registerSingleton<ILogger>('LoggerService', LoggerService);

@@ -1,27 +1,44 @@
 import { IPollingSystem } from '../IPollingSystem';
 import { LogExecution } from '../../../utils/LogExecution';
 import { ConfigService } from '../../../configs/ConfigService';
+import { ICache } from '../../../utils/ICache';
+import activeWindow from 'active-win';
+  
 //make a microservice thats a cache
 //make a microservice the polls for a window change
 //make a microservice that polls for a window change and then calls a callback with the key
 
 export class WindowChangePoller {
+  private currentWindowKey: string | null = null;
+
   constructor(
-    private readonly polling: IPollingSystem,
-    private readonly config: ConfigService,
+    private readonly pollingSystem: IPollingSystem,
+    private readonly configInterval: ConfigService,
     private readonly onChange: (key: string) => void
   ) {}
 
   @LogExecution()
+  async onTick(): Promise<void> {
+    const activeWindowTitle = (await activeWindow())?.title;
+    console.log('Active window title:', activeWindowTitle);
+    if (!activeWindowTitle) {
+      console.warn('No active window detected');
+      return;
+    }
+
+    if (this.currentWindowKey !== activeWindowTitle) {
+      this.currentWindowKey = activeWindowTitle;
+      this.onChange(activeWindowTitle);
+    }
+  }
+
+  @LogExecution()
   start(): void {
-    this.polling.register('WindowChangePoller', 1000, () => {
-      // TODO: Implement actual window detection logic
-      // For now, just call with a placeholder
-      this.onChange('placeholder-window-key');
-    });
+    this.pollingSystem.register('WindowChangePoller', this.configInterval.windowChangeIntervalMs,
+      this.onTick.bind(this));
   }
   @LogExecution()
   stop(): void {
-    this.polling.unregister('WindowChangePoller');
+    this.pollingSystem.unregister('WindowChangePoller');
   }
 }
