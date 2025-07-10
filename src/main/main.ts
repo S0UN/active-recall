@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { app, BrowserWindow } from 'electron';
 import container from './container';
 import { Orchestrator } from './services/Orchestrator';

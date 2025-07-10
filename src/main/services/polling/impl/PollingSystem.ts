@@ -6,8 +6,8 @@ import { LogExecution } from '../../../utils/LogExecution';
 export class PollingSystem implements IPollingSystem {
   private readonly pollers = new Map<string, any>();
 
-  constructor(private readonly interval: number) {
-    this.interval = interval || 1000; 
+  constructor() {
+    // No constructor parameters needed
   }
 
   @LogExecution()

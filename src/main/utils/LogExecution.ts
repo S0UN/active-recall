@@ -8,8 +8,10 @@ export interface LogExecutionOptions {
   logResult?: boolean;
 }
 
-// Retrieve the logger instance from the container
-const logger = container.resolve<ILogger>('LoggerService');
+// Lazy function to retrieve the logger instance from the container
+const getLogger = (): ILogger => {
+  return container.resolve<ILogger>('LoggerService');
+};
 
 // Determine if we are in development mode
 const isDevelopment = !app.isPackaged;
@@ -40,23 +42,23 @@ export function LogExecution(options: LogExecutionOptions = {}) {
           // Add other type checks as needed
           return arg;
         });
-        logger.info(`[${className}] Entering '${propertyKey}' with args:`, ...argsToLog);
+        getLogger().info(`[${className}] Entering '${propertyKey}' with args:`, ...argsToLog);
       } else {
-        logger.info(`[${className}] Entering '${propertyKey}'.`);
+        getLogger().info(`[${className}] Entering '${propertyKey}'.`);
       }
 
       try {
         const result = await originalMethod.apply(this, args);
         
         if (logResult) {
-            logger.info(`[${className}] Exited '${propertyKey}' successfully with result.`);
+            getLogger().info(`[${className}] Exited '${propertyKey}' successfully with result.`);
         } else {
-            logger.info(`[${className}] Exited '${propertyKey}' successfully.`);
+            getLogger().info(`[${className}] Exited '${propertyKey}' successfully.`);
         }
 
         return result;
       } catch (error) {
-        logger.error(`[${className}] Error in '${propertyKey}':`, error as Error);
+        getLogger().error(`[${className}] Error in '${propertyKey}':`, error as Error);
         throw error;
       }
     };
