@@ -9,9 +9,12 @@ import { IOcrService } from "./analysis/IOcrService";
 import { IClassificationService } from "./analysis/IClassificationService";
 import { IBatcherService } from "./network/IBatcherService";
 import { VisionService } from "./processing/impl/VisionService";
+import { LogExecution } from '../utils/LogExecution';
+import { ICache } from '../utils/ICache';
+import { WindowCache } from '../utils/WindowCache';
 @injectable()
 export class Orchestrator {
-  private cache = new Map<string, { mode: string; lastClassified: number }>();
+  private cache: ICache<string, any>;
   private state: IOrchestratorState;
   public currentKey: string | null = null;
   private readonly windowPoller: WindowChangePoller;
@@ -20,6 +23,7 @@ export class Orchestrator {
   private readonly visionService: VisionService;
 
   constructor(
+    @inject("WindowCache") cache: ICache<string, any>,
     @inject("VisionService") private readonly vision: VisionService,
     @inject("WindowChangePollerFactory")
     private readonly createWindowPoller: (
@@ -41,6 +45,7 @@ export class Orchestrator {
     @inject("BatcherService") private readonly batcher: IBatcherService,
     @inject("LoggerService") public readonly logger: any
   ) {
+    this.cache = cache;
     this.state = new IdleState(this);
 
     this.visionService = new VisionService(
@@ -48,7 +53,7 @@ export class Orchestrator {
       this.ocr,
       this.logger
     );
-    
+
     // Create pollers with their callbacks
     this.windowPoller = this.createWindowPoller((key: string) => {
       this.currentKey = key;
@@ -71,11 +76,30 @@ export class Orchestrator {
     this.state.onExit();
   }
 
+//  need to write logic for checking if something is studying 
+// if it is idle and the window changes, and it one shots and says its studying, we need to transition to studying state
+
   private transitionStateIfNeeded(key: string) {
+    this.runFullPipeline
+    this.cache.set(key, {
+      mode: "idle",
+      lastClassified: Date.now(),
+    });
+
     // Placeholder
   }
 
+
+// need to take in a callback to where if it classifies as not studying, it calls the callback to switch states to idle state. The state should say something like
+// if it is in study mode and is idle, it should transition to idle state. The revitialization poller should check if the window is idle and if it is, 
+  @LogExecution()
   async runFullPipeline(key: string) {
+    this.logger.info(`Running full pipeline for key: ${key}`);
+      const text = await this.visionService.captureAndRecognizeText();
+      this.logger.info(`Captured text: ${text}`);
+      const classified = await this.classifier.classify(text);
+      this.logger.info(`Classified text: ${classified}`);
+      this.batcher.add(text);   
     // Placeholder
   }
 

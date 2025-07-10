@@ -2,14 +2,14 @@ import { ICache } from '../utils/ICache';
 import { injectable } from 'tsyringe';
 
 @injectable()
-class WindowCache implements ICache<string, any> {
-  private cache = new Map<string, any>();
+export class WindowCache implements ICache<string, any> {
+  private cache = new Map<string, { mode: string; lastClassified: number }>();
 
-  get(key: string): any | undefined {
+  get(key: string): { mode: string; lastClassified: number } | undefined {
     return this.cache.get(key);
   }
 
-  set(key: string, value: any): void {
+  set(key: string, value: { mode: string; lastClassified: number }): void {
     this.cache.set(key, value);
   }
 
