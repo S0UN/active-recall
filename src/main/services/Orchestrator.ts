@@ -12,6 +12,18 @@ import { VisionService } from "./processing/impl/VisionService";
 import { LogExecution } from "../utils/LogExecution";
 import { ICache } from "../utils/ICache";
 import { StudyingState } from "./orchestrator/impl/StudyingState";
+
+//Need to also store the studying tabs in the cache
+// When we switch to a studying tab, we should run the full pipeline right away
+// WHen we switch to an idle tab, we should run the pipeline depending on the last classified time
+// If the last classified time is more than 15 minutes ago, we should run the pipeline
+// If the last classified time is less than 15 minutes ago, we should not run the pipeline
+// make these changes in the Orchestrator class
+// also make the orchestrator class more modular by separating the concerns of polling, capturing, OCR, classification, and batching
+
+
+
+
 @injectable()
 export class Orchestrator {
   private cache: ICache<string, any>;
