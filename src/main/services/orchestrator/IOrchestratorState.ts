@@ -1,6 +1,6 @@
 export interface IOrchestratorState {
   onEnter(): void;
   onWindowChange(key: string): void;
-  onOcrTick(): void;
+  onTick(): void;
   onExit(): void;
 }

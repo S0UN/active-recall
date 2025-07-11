@@ -4,10 +4,6 @@ import { ConfigService } from '../../../configs/ConfigService';
 import { ICache } from '../../../utils/ICache';
 import activeWindow from 'active-win';
   
-//make a microservice thats a cache
-//make a microservice the polls for a window change
-//make a microservice that polls for a window change and then calls a callback with the key
-
 export class WindowChangePoller {
   private currentWindowKey: string | null = null;
 

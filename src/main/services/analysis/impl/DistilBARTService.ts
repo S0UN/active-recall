@@ -4,9 +4,9 @@ import { pipeline } from '@xenova/transformers';
 
 @injectable()
 export class DistilBARTService implements IClassificationService {
-  public async classify(text: string): Promise<boolean> {
+  public async classify(text: string): Promise<string> {
     // Placeholder implementation
     console.log('DistilBARTService: classify called');
-    return Promise.resolve(true);
+    return "classified-label"; // Example return value
   }
 }

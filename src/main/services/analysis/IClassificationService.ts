@@ -1,3 +1,3 @@
 export interface IClassificationService {
-  classify(text: string): Promise<boolean>;
+  classify(text: string): Promise<string>;
 }

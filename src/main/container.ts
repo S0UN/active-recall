@@ -30,6 +30,7 @@ container.register('WindowChangePollerFactory', {
   useFactory: (container) => {
     return (callback: (key: string) => void) => {
       const polling = container.resolve<IPollingSystem>('PollingSystem');
+      
       const config = container.resolve<IPollingConfig>('PollingConfig');
       return new WindowChangePoller(polling, config, callback);
     };

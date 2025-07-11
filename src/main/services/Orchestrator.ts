@@ -9,19 +9,22 @@ import { IOcrService } from "./analysis/IOcrService";
 import { IClassificationService } from "./analysis/IClassificationService";
 import { IBatcherService } from "./network/IBatcherService";
 import { VisionService } from "./processing/impl/VisionService";
-import { LogExecution } from '../utils/LogExecution';
-import { ICache } from '../utils/ICache';
-import { WindowCache } from '../utils/WindowCache';
+import { LogExecution } from "../utils/LogExecution";
+import { ICache } from "../utils/ICache";
+import { StudyingState } from "./orchestrator/impl/StudyingState";
 @injectable()
 export class Orchestrator {
   private cache: ICache<string, any>;
   private state: IOrchestratorState;
+  private idleState: IdleState;
+  private studyingState: StudyingState;
   public currentKey: string | null = null;
   private readonly windowPoller: WindowChangePoller;
   private readonly studyingOcrPoller: StudyingOCRPoller;
   private readonly idleRevalPoller: IdleRevalidationPoller;
   private readonly visionService: VisionService;
 
+  //turn this in to a builder pattern
   constructor(
     @inject("WindowCache") cache: ICache<string, any>,
     @inject("VisionService") private readonly vision: VisionService,
@@ -46,26 +49,26 @@ export class Orchestrator {
     @inject("LoggerService") public readonly logger: any
   ) {
     this.cache = cache;
-    this.state = new IdleState(this);
+    this.idleState = new IdleState(this);
+    this.studyingState = new StudyingState(this);
 
-    this.visionService = new VisionService(
-      this.capture,
-      this.ocr,
-      this.logger
-    );
+    this.state = this.idleState;
+
+    this.visionService = new VisionService(this.capture, this.ocr, this.logger);
 
     // Create pollers with their callbacks
     this.windowPoller = this.createWindowPoller((key: string) => {
       this.currentKey = key;
+      this.state.onWindowChange(key);
       this.transitionStateIfNeeded(key);
     });
 
     this.studyingOcrPoller = this.createStudyingOcrPoller(() => {
-      this.state.onOcrTick();
+      this.state.onTick();
     });
 
     this.idleRevalPoller = this.createIdleRevalPoller(() => {
-      
+      this.state.onTick();
     });
   }
 
@@ -76,37 +79,75 @@ export class Orchestrator {
     this.state.onExit();
   }
 
-//  need to write logic for checking if something is studying 
-// if it is idle and the window changes, and it one shots and says its studying, we need to transition to studying state
-
+  @LogExecution()
   private transitionStateIfNeeded(key: string) {
-    this.runFullPipeline
-    this.cache.set(key, {
-      mode: "idle",
-      lastClassified: Date.now(),
-    });
-
-    // Placeholder
+    const entry = this.cache.get(key);
+    let desiredState: IOrchestratorState;
+    if (entry && entry.mode === "Studying") {
+      desiredState = this.studyingState;
+    } else {
+      desiredState = this.idleState;
+    }
+    if (this.state.constructor !== desiredState.constructor) {
+      this.state.onExit();
+      this.state = desiredState;
+      this.state.onEnter();
+    }
   }
 
-
-// need to take in a callback to where if it classifies as not studying, it calls the callback to switch states to idle state. The state should say something like
-// if it is in study mode and is idle, it should transition to idle state. The revitialization poller should check if the window is idle and if it is, 
   @LogExecution()
   async runFullPipeline(key: string) {
+    const currentKey = this.cache.get(key);
     this.logger.info(`Running full pipeline for key: ${key}`);
-      const text = await this.visionService.captureAndRecognizeText();
-      this.logger.info(`Captured text: ${text}`);
-      const classified = await this.classifier.classify(text);
-      this.logger.info(`Classified text: ${classified}`);
-      this.batcher.add(text);   
+    const text = await this.visionService.captureAndRecognizeText();
+    this.logger.info(`Captured text: ${text}`);
+    const nextMode = await this.classifier.classify(text);
+    this.logger.info(`Classified text: ${nextMode}`);
+
+    if (currentKey === "Idle" && nextMode === "Studying") {
+      this.cache.delete(key); 
+      this.transitionStateIfNeeded(key);
+    }
+
+    if (currentKey === "Studying" && nextMode === "Idle") {
+      this.cache.set(key, Date.now());
+      this.transitionStateIfNeeded(key);
+    }
+
+    if (nextMode === 'Studying') {
+      this.batcher.add(text);
+      await this.batcher.flushIfNeeded();
+    }
     // Placeholder
   }
 
+  @LogExecution()
+  IdleRevalidation() {
+    const state = this.cache.get(this.currentKey!);
+    if (!state || Date.now() - state.lastClassified > 15 * 60_000) {
+      this.runFullPipeline(this.currentKey!);
+    } else {
+      this.logger.info(`Window ${this.currentKey} is still active, no reclassification needed.`);
+    }
+  }
+
+
+  @LogExecution()
   updateLastSeen(key: string) {
+    const entry = this.cache.get(key);
+    if (entry) {
+      entry.lastClassified = Date.now();
+      this.cache.set(key, entry);
+      this.logger.info(`Updated last seen for key: ${key}`);
+    } else {
+      this.logger.warn(`No entry found for key: ${key}`);
+    }
     // Placeholder
   }
 
+  public getWindowCache(): ICache<string, any> {
+    return this.cache;
+  }
   public startWindowPolling(): void {
     this.windowPoller.start();
   }

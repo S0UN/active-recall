@@ -18,11 +18,8 @@ export class VisionService {
     try {
       this.logger.info('Capturing screen...');
       const imageBuffer = await this.screenCaptureService.captureScreen();
-      this.logger.info('Screen captured, performing OCR...');
       await this.ocrService.init();
-      this.logger.info('OCR service initialized, processing image...');
       const text = await this.ocrService.getTextFromImage(imageBuffer);
-      this.logger.info('OCR completed.');
       return text;
     } catch (error) {
       this.logger.error('Error in captureAndRecognizeText:', error as Error);
