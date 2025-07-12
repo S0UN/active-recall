@@ -6,11 +6,11 @@ export class StudyingState implements IOrchestratorState {
   onEnter() {
     this.orchestrator.startStudyingOcrPolling();
   }
-  onWindowChange(key: string) {
-    this.orchestrator.updateLastSeen(key);
+  onWindowChange(oldKey: string, newKey: string) {
+    this.orchestrator.onCommonWindowChange(oldKey, newKey);
   }
   onTick() {
-    this.orchestrator.runFullPipeline(this.orchestrator.currentKey!);
+    this.orchestrator.runFullPipeline(this.orchestrator.currentWindow!);
   }
   onExit() {
     this.orchestrator.stopStudyingOcrPolling();

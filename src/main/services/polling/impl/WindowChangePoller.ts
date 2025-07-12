@@ -5,12 +5,12 @@ import { ICache } from '../../../utils/ICache';
 import activeWindow from 'active-win';
   
 export class WindowChangePoller {
-  private currentWindowKey: string | null = null;
+  private currentWindow: string | null = null;
 
   constructor(
     private readonly pollingSystem: IPollingSystem,
     private readonly configInterval: ConfigService,
-    private readonly onChange: (key: string) => void
+    private readonly onChange: (oldWindow: string | null, newWindow: string) => void
   ) {}
 
   @LogExecution()
@@ -22,9 +22,10 @@ export class WindowChangePoller {
       return;
     }
 
-    if (this.currentWindowKey !== activeWindowTitle) {
-      this.currentWindowKey = activeWindowTitle;
-      this.onChange(activeWindowTitle);
+    if (this.currentWindow !== activeWindowTitle) {
+      
+      this.onChange(this.currentWindow, activeWindowTitle);
+      this.currentWindow = activeWindowTitle;
     }
   }
 

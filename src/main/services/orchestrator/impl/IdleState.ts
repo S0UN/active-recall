@@ -9,18 +9,12 @@ export class IdleState implements IOrchestratorState {
     this.orchestrator.startIdleRevalidationPolling();
     this.orchestrator.logger.info('Entered Idle State');
   }
-  onWindowChange(key: string) {
-    this.orchestrator.updateLastSeen(key);
+  onWindowChange(oldWindow: string, newWindow: string) {
+    this.orchestrator.onCommonWindowChange(oldWindow, newWindow);
   }
 
   onTick() { 
-    const state = this.orchestrator.getWindowCache().get(this.orchestrator.currentKey!);
-    if (!state || Date.now() - state.lastClassified > 15 * 60_000) {
-      this.orchestrator.runFullPipeline(this.orchestrator.currentKey!);
-    } else {
-      this.orchestrator.logger.info(`Window ${this.orchestrator.currentKey} is still active, no reclassification needed.`);
-    }
-   
+    this.orchestrator.IdleRevalidation();
    }
   onExit() {
     this.orchestrator.stopWindowPolling();

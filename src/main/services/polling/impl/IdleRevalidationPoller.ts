@@ -15,7 +15,7 @@ export class IdleRevalidationPoller implements IPoller {
 
   @LogExecution()
   start(): void {
-    this.polling.register('IdleRevalidationPoller', this.configInterval.idleRevalidationThresholdMs, this.onTick.bind(this));
+    this.polling.register('IdleRevalidationPoller', this.configInterval.idleRevalidationIntervalMs, this.onTick.bind(this));
   }
   @LogExecution()
   stop(): void {

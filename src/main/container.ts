@@ -28,9 +28,9 @@ container.registerSingleton<ILogger>('LoggerService', LoggerService);
 // Register factory functions for pollers that need callbacks
 container.register('WindowChangePollerFactory', {
   useFactory: (container) => {
-    return (callback: (key: string) => void) => {
+    return (callback: (oldKey: string, newKey: string) => void) => {
       const polling = container.resolve<IPollingSystem>('PollingSystem');
-      
+
       const config = container.resolve<IPollingConfig>('PollingConfig');
       return new WindowChangePoller(polling, config, callback);
     };
@@ -51,7 +51,8 @@ container.register('IdleRevalidationPollerFactory', {
   useFactory: (container) => {
     return (callback: () => void) => {
       const polling = container.resolve<IPollingSystem>('PollingSystem');
-      return new IdleRevalidationPoller(polling, callback);
+      const config = container.resolve<IPollingConfig>('PollingConfig');
+      return new IdleRevalidationPoller(polling, config, callback);
     };
   }
 });
