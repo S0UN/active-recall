@@ -107,6 +107,7 @@ export class Orchestrator {
     const entry = this.cache.get(newWindow);
 
     let desiredState: IOrchestratorState;
+    
     if (entry.mode === "Studying") {
       desiredState = this.studyingState;
     } else {
