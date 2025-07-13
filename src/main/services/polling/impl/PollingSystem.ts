@@ -15,7 +15,7 @@ export class PollingSystem implements IPollingSystem {
     if (this.pollers.has(name)) {
       return;
     }
-    const poller = { interval, callback };
+    const poller = setInterval(callback, interval);
     this.pollers.set(name, poller);
   }
 
@@ -27,3 +27,4 @@ export class PollingSystem implements IPollingSystem {
     }
   }
 }
+

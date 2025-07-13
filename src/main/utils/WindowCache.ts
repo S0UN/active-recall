@@ -1,9 +1,11 @@
 import { ICache } from '../utils/ICache';
 import { injectable } from 'tsyringe';
+import { ConfigService } from '../configs/ConfigService';
 
 @injectable()
 export class WindowCache implements ICache<string, { mode: string; lastClassified: number }> {
   private readonly cache = new Map<string, { mode: string; lastClassified: number }>();
+  private readonly configService = new ConfigService();
 
   get(key: string): { mode: string; lastClassified: number }  {
     return this.cache.get(key) as { mode: string; lastClassified: number };
@@ -20,5 +22,22 @@ export class WindowCache implements ICache<string, { mode: string; lastClassifie
   delete(key: string): void {
     this.cache.delete(key);
   }
-  
+
+  startTTL(): void {
+    setInterval(() => {
+      this.createTTL();
+    }, 60 * 1000); // Check every minute
+  }
+
+  createTTL():void{
+    if (this.cache.size > 0) {
+      const now = Date.now();
+      for (const [key, value] of this.cache.entries()) {
+        if (now - value.lastClassified > this.configService.windowCacheTTL) { 
+          this.cache.delete(key);
+        }
+      }
+    }
+  }
+
 }

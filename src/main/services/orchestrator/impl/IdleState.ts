@@ -7,7 +7,6 @@ export class IdleState implements IOrchestratorState {
   onEnter() {
     this.orchestrator.startWindowPolling();
     this.orchestrator.startIdleRevalidationPolling();
-    this.orchestrator.logger.info('Entered Idle State');
   }
   onWindowChange(oldWindow: string, newWindow: string) {
     this.orchestrator.onCommonWindowChange(oldWindow, newWindow);

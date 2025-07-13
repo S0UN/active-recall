@@ -3,4 +3,5 @@ export interface IPollingConfig {
   studyingOcrIntervalMs: number;
   idleRevalidationThresholdMs: number;
   idleRevalidationIntervalMs: number;
+  windowCacheTTL: number;
 }

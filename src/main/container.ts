@@ -1,70 +1,94 @@
+// src/container.ts
 import 'reflect-metadata';
 import { container } from 'tsyringe';
 
 import { ILogger } from './utils/ILogger';
 import { LoggerService } from './utils/LoggerService';
+
+import { IPollingConfig } from './configs/IPollingConfig';
+import { ConfigService } from './configs/ConfigService';
+
+import { ICache } from './utils/ICache';
+import { WindowCache } from './utils/WindowCache';
+
 import { IPollingSystem } from './services/polling/IPollingSystem';
 import { PollingSystem } from './services/polling/impl/PollingSystem';
+
 import { IOcrService } from './services/analysis/IOcrService';
 import { TesseractOcrService } from './services/analysis/impl/TesseractOcrService';
+
 import { IClassificationService } from './services/analysis/IClassificationService';
 import { DistilBARTService } from './services/analysis/impl/DistilBARTService';
+
 import { IScreenCaptureService } from './services/capture/IScreenCaptureService';
 import { ElectronCaptureService } from './services/capture/impl/ElectronCaptureService';
+
 import { IBatcherService } from './services/network/IBatcherService';
 import { BatcherService } from './services/network/impl/BatcherService';
+
 import { WindowChangePoller } from './services/polling/impl/WindowChangePoller';
 import { StudyingOCRPoller } from './services/polling/impl/StudyingOCRPoller';
 import { IdleRevalidationPoller } from './services/polling/impl/IdleRevalidationPoller';
-import { Orchestrator } from './services/Orchestrator';
-import { VisionService } from './services/processing/impl/VisionService';
-import { IPollingConfig } from './configs/IPollingConfig';
-import { ConfigService } from './configs/ConfigService';
-import { ICache } from './utils/ICache';
 
-// Register the logger first as it might be used by other services during initialization
+import { VisionService } from './services/processing/impl/VisionService';
+import { Orchestrator } from './services/Orchestrator';
+
+// 1) Core utilities
 container.registerSingleton<ILogger>('LoggerService', LoggerService);
 
-// Register factory functions for pollers that need callbacks
-container.register('WindowChangePollerFactory', {
-  useFactory: (container) => {
-    return (callback: (oldKey: string | null, newKey: string) => void) => {
-      const polling = container.resolve<IPollingSystem>('PollingSystem');
-
-      const config = container.resolve<IPollingConfig>('PollingConfig');
-      return new WindowChangePoller(polling, config, callback);
-    };
-  }
-});
-
-container.register('StudyingOCRPollerFactory', {
-  useFactory: (container) => {
-    return (callback: () => void) => {
-      const polling = container.resolve<IPollingSystem>('PollingSystem');
-      const config = container.resolve<IPollingConfig>('PollingConfig');
-      return new StudyingOCRPoller(polling, config, callback);
-    };
-  }
-});
-
-container.register('IdleRevalidationPollerFactory', {
-  useFactory: (container) => {
-    return (callback: () => void) => {
-      const polling = container.resolve<IPollingSystem>('PollingSystem');
-      const config = container.resolve<IPollingConfig>('PollingConfig');
-      return new IdleRevalidationPoller(polling, config, callback);
-    };
-  }
-});
-
-// Register other services for dependency injection
+// 2) Configuration
 container.registerSingleton<IPollingConfig>('PollingConfig', ConfigService);
+
+// 3) Cache
+container.registerSingleton<
+  ICache<string, { mode: string; lastClassified: number }>
+>('WindowCache', WindowCache);
+
+
+
+// 4) Low-level services
 container.registerSingleton<IPollingSystem>('PollingSystem', PollingSystem);
 container.registerSingleton<IOcrService>('OcrService', TesseractOcrService);
-container.registerSingleton<IClassificationService>('ClassificationService', DistilBARTService);
-container.registerSingleton<IScreenCaptureService>('ScreenCaptureService', ElectronCaptureService);
-container.registerSingleton<IBatcherService>('BatcherService', BatcherService);
-container.registerSingleton<Orchestrator>(Orchestrator);
-container.registerSingleton<VisionService>(VisionService);
+container.registerSingleton<IClassificationService>(
+  'ClassificationService',
+  DistilBARTService
+);
+container.registerSingleton<IScreenCaptureService>(
+  'ScreenCaptureService',
+  ElectronCaptureService
+);
+container.registerSingleton<IBatcherService>(
+  'BatcherService',
+  BatcherService
+);
+
+// 5) Pollers
+container.registerSingleton(WindowChangePoller);
+container.registerSingleton(StudyingOCRPoller);
+container.registerSingleton(IdleRevalidationPoller);
+
+// 6) Higher-level services
+container.registerSingleton(VisionService);
+container.registerSingleton(Orchestrator);
+
+// now bind the callback‐tokens to the real methods:
+container.registerInstance(
+  "OnWindowChange",
+  container.resolve(Orchestrator).onCommonWindowChange.bind(
+    container.resolve(Orchestrator)
+  )
+);
+container.registerInstance(
+  "OnOcrTick",
+  container.resolve(Orchestrator).runFullPipeline.bind(
+    container.resolve(Orchestrator)
+  )
+);
+container.registerInstance(
+  "OnIdleRevalidation",
+  container.resolve(Orchestrator).IdleRevalidation.bind(
+    container.resolve(Orchestrator)
+  )
+);
 
 export default container;
