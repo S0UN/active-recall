@@ -4,9 +4,14 @@ import container from './container';
 import { Orchestrator } from './services/Orchestrator';
 import { ILogger } from './utils/ILogger';
 import { TesseractOcrService } from './services/analysis/impl/TesseractOcrService';
+import { systemPreferences } from 'electron';
+import { dialog, desktopCapturer } from 'electron';
+
+console.log(' execPath:', process.execPath);
 
 // Resolve the logger from the container
 const logger = container.resolve<ILogger>('LoggerService');
+const orchestrator = container.resolve<Orchestrator>('Orchestrator');
 
 // Global error handlers
 process.on('uncaughtException', (error) => {
@@ -31,11 +36,39 @@ function createWindow() {
   win.loadFile('src/renderer/index.html');
 }
 
-app.whenReady().then(() => {
-  createWindow();
+// ...existing code...
 
-  const orchestrator = container.resolve(Orchestrator);
-  // orchestrator.start(); // Starting this later
+app.whenReady().then(async () => {
+  //createWindow();
+  
+  // Check current permission status
+  const hasScreenPermission = systemPreferences.getMediaAccessStatus('screen');
+  logger.info('Screen recording permission status:', hasScreenPermission);
+  
+  if (hasScreenPermission !== 'granted') {
+    // Show info dialog
+    const result = await dialog.showMessageBox({
+      type: 'info',
+      title: 'Screen Recording Permission Required',
+      message: 'This app needs screen recording permission to detect window changes.',
+      detail: 'Please allow screen recording when prompted, then restart the app.',
+      buttons: ['Continue', 'Cancel']
+    });
+    
+    if (result.response === 1) {
+      app.quit();
+      return;
+    }
+    
+    // Trigger the permission request
+    try {
+      await desktopCapturer.getSources({ types: ['screen'] });
+    } catch (error) {
+      logger.error('Failed to request screen recording permission:', error as Error);
+    }
+  }
+  
+  orchestrator.start();
 });
 
 app.on('window-all-closed', () => {

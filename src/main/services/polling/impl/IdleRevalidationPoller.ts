@@ -1,16 +1,29 @@
-import { IPoller } from "../IPoller";
+// src/services/polling/impl/IdleRevalidationPoller.ts
+import { injectable, inject } from "tsyringe";
+import { BasePoller } from "./BasePoller";
 import { IPollingSystem } from "../IPollingSystem";
-import { LogExecution } from "../../../utils/LogExecution";
 import { ConfigService } from "../../../configs/ConfigService";
-import { BasePoller } from "./basePoller";
-import inject from 'tsyringe/dist/typings/decorators/inject';
+import { IPoller } from "../IPoller";
 
+@injectable()
 export class IdleRevalidationPoller extends BasePoller implements IPoller {
+  // default no-op
+  private onTickCallback: () => void = () => {};
+
   constructor(
-    @inject("PollingSystem") polling: IPollingSystem,
-    @inject("ConfigService") configInterval: ConfigService,
-    onTick: () => void,
+    @inject("PollingSystem")   polling: IPollingSystem,
+    @inject("PollingConfig")    config: ConfigService
   ) {
-    super(polling, configInterval.idleRevalidationIntervalMs, "IdleRevalidationPoller", onTick);
+    super(
+      polling,
+      config.idleRevalidationIntervalMs,
+      "IdleRevalidation",
+      () => this.onTickCallback()
+    );
+  }
+
+  /** Wire in the real callback before you call start() */
+  public setOnTick(cb: () => void): void {
+    this.onTickCallback = cb;
   }
 }

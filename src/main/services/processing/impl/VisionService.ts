@@ -13,7 +13,6 @@ export class VisionService {
     @inject('LoggerService') private readonly logger: ILogger
   ) {}
 
-  @LogExecution()
   public async captureAndRecognizeText(): Promise<string> {
     try {
       this.logger.info('Capturing screen...');

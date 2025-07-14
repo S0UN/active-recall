@@ -6,7 +6,6 @@ import { LogExecution } from '../../../utils/LogExecution';
 @injectable()
 export class ElectronCaptureService implements IScreenCaptureService {
 
-  @LogExecution()
   public async captureScreen(): Promise<Buffer> {
     const sources = await desktopCapturer.getSources({
       types: ["screen"],

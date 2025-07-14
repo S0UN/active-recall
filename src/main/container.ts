@@ -32,6 +32,7 @@ import { IdleRevalidationPoller } from './services/polling/impl/IdleRevalidation
 
 import { VisionService } from './services/processing/impl/VisionService';
 import { Orchestrator } from './services/Orchestrator';
+import { IPoller } from './services/polling/IPoller';
 
 // 1) Core utilities
 container.registerSingleton<ILogger>('LoggerService', LoggerService);
@@ -62,33 +63,16 @@ container.registerSingleton<IBatcherService>(
   BatcherService
 );
 
+
 // 5) Pollers
-container.registerSingleton(WindowChangePoller);
-container.registerSingleton(StudyingOCRPoller);
-container.registerSingleton(IdleRevalidationPoller);
+container.registerSingleton<IPoller>('WindowChangePoller', WindowChangePoller);
+container.registerSingleton<IPoller>('StudyingOCRPoller', StudyingOCRPoller);
+container.registerSingleton<IPoller>('IdleRevalidationPoller', IdleRevalidationPoller);
 
 // 6) Higher-level services
-container.registerSingleton(VisionService);
-container.registerSingleton(Orchestrator);
+container.registerSingleton<VisionService>('VisionService', VisionService);
+container.registerSingleton<Orchestrator>('Orchestrator', Orchestrator);
 
-// now bind the callback‐tokens to the real methods:
-container.registerInstance(
-  "OnWindowChange",
-  container.resolve(Orchestrator).onCommonWindowChange.bind(
-    container.resolve(Orchestrator)
-  )
-);
-container.registerInstance(
-  "OnOcrTick",
-  container.resolve(Orchestrator).runFullPipeline.bind(
-    container.resolve(Orchestrator)
-  )
-);
-container.registerInstance(
-  "OnIdleRevalidation",
-  container.resolve(Orchestrator).IdleRevalidation.bind(
-    container.resolve(Orchestrator)
-  )
-);
+
 
 export default container;

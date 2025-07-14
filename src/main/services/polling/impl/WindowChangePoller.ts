@@ -1,39 +1,89 @@
 // src/polling/impl/WindowChangePoller.ts
 import { injectable, inject } from "tsyringe";
 import activeWindow from "active-win";
-import { BasePoller } from "./basePoller";
 import { IPollingSystem } from "../IPollingSystem";
 import { ConfigService } from "../../../configs/ConfigService";
 import { LogExecution } from "../../../utils/LogExecution";
+import { BasePoller } from "./BasePoller";
+import { IPoller } from "../IPoller";
+import Logger from "electron-log";
 
 @injectable()
-export class WindowChangePoller extends BasePoller {
+export class WindowChangePoller extends BasePoller implements IPoller {
   private currentWindow: string | null = null;
+  private onChange: (old: string | null, next: string) => void = () => {};
 
   constructor(
     @inject("PollingSystem") polling: IPollingSystem,
-    @inject(ConfigService) configInterval: ConfigService,
-    @inject("OnWindowChange") onChange: (old: string | null, next: string) => void
+    @inject("PollingConfig") configInterval: ConfigService
   ) {
-    // name: "WindowChange"
-    // interval: configInterval.windowChangeIntervalMs
-    // onTick: delegate to our instance method
+    // pass only your polling and interval to the base
     super(polling, configInterval.windowChangeIntervalMs, "WindowChange", () =>
       this.poll()
     );
-    this.onChange = onChange;
   }
 
-  private onChange: (old: string | null, next: string) => void;
+  /**
+   * Call this from your Orchestrator (or WindowManager)
+   * to wire up the real callback before you call start().
+   */
+  public setOnChange(cb: (old: string | null, next: string) => void): void {
+    this.onChange = cb;
+  }
 
-  @LogExecution()
   private async poll(): Promise<void> {
-    const title = (await activeWindow())?.title;
-    if (!title) return;
-    if (title !== this.currentWindow) {
-      const old = this.currentWindow;
-      this.currentWindow = title;
-      this.onChange(old, title);
+  try {
+    const window = await activeWindow();
+    
+    if (!window) return;
+
+    let windowIdentifier: string;
+    
+    // Handle browsers with empty titles
+    if (!window.title || window.title.trim() === '') {
+      // Check if URL is available (macOS only)
+      if ('url' in window && typeof window.url === 'string' && window.url) {
+        // macOS: Use URL for better browser identification
+        try {
+          const url = new URL(window.url);
+          
+          if (url.protocol === 'favorites:') {
+            windowIdentifier = `${window.owner.name} - Favorites`;
+          } else if (url.hostname) {
+            windowIdentifier = `${window.owner.name} - ${url.hostname}`;
+          } else {
+            windowIdentifier = `${window.owner.name} - ${window.url}`;
+          }
+        } catch (urlError) {
+          windowIdentifier = `${window.owner.name} - ${window.url}`;
+        }
+      } else {
+        // Windows/Linux: Use app name + process info for better identification
+        if (window.owner.name === 'Google Chrome' || window.owner.name === 'chrome.exe') {
+          windowIdentifier = `Chrome - Active Tab`;
+        } else if (window.owner.name === 'Safari') {
+          windowIdentifier = `Safari - Active Tab`;
+        } else if (window.owner.name.toLowerCase().includes('firefox')) {
+          windowIdentifier = `Firefox - Active Tab`;
+        } else if (window.owner.name.toLowerCase().includes('edge')) {
+          windowIdentifier = `Edge - Active Tab`;
+        } else {
+          windowIdentifier = `${window.owner.name} - No Title`;
+        }
+      }
+    } else {
+      windowIdentifier = window.title;
     }
+    
+    Logger.info(`Current active window: ${this.currentWindow}, New window: ${windowIdentifier}`);
+    
+    if (windowIdentifier !== this.currentWindow) {
+      const old = this.currentWindow;
+      this.currentWindow = windowIdentifier;
+      this.onChange(old, windowIdentifier);
+    }
+  } catch (error) {
+    Logger.error('Error getting active window:', error);
   }
+}
 }

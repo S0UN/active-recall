@@ -5,6 +5,7 @@ import { inject } from 'tsyringe';
 export class IdleState implements IOrchestratorState {
   constructor(private readonly orchestrator: Orchestrator) {}
   onEnter() {
+    this.orchestrator.logger.info('Entering Idle State');
     this.orchestrator.startWindowPolling();
     this.orchestrator.startIdleRevalidationPolling();
   }
@@ -16,6 +17,7 @@ export class IdleState implements IOrchestratorState {
     this.orchestrator.IdleRevalidation();
    }
   onExit() {
-    this.orchestrator.stopWindowPolling();
+     this.orchestrator.logger.info('Exiting Idle State');
+     this.orchestrator.stopIdleRevalidationPolling();
   }
 }

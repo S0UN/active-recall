@@ -4,7 +4,6 @@ import { IdleState } from "./orchestrator/impl/IdleState";
 import { WindowChangePoller } from "./polling/impl/WindowChangePoller";
 import { StudyingOCRPoller } from "./polling/impl/StudyingOCRPoller";
 import { IdleRevalidationPoller } from "./polling/impl/IdleRevalidationPoller";
-import { IOcrService } from "./analysis/IOcrService";
 import { IClassificationService } from "./analysis/IClassificationService";
 import { IBatcherService } from "./network/IBatcherService";
 import { VisionService } from "./processing/impl/VisionService";
@@ -14,13 +13,26 @@ import { StudyingState } from "./orchestrator/impl/StudyingState";
 import { ConfigService } from "../configs/ConfigService";
 import { ILogger } from "../utils/ILogger";
 
+// MUST UNDERSTAND TWO THINGS, WHY DO I NEED TO DO :
+/*
+this.pollingSystem.register(this.name, this.intervalMs, () =>
+Promise.resolve(callback()).catch(err => this.logger.error(err))
+);
+
+AND WHY DO I NEED TO DO THIS TO SET PROPERLY:
+
+  
+  public setOnTick(cb: () => void): void {
+    this.onTickCallback = cb;
+  }
+*/
+
 @injectable()
 export class Orchestrator {
   private state: IOrchestratorState;
   private readonly idleState: IdleState;
   private readonly studyingState: StudyingState;
   public currentWindow: string | null = null;
-
 
   constructor(
     @inject("WindowCache")
@@ -29,20 +41,17 @@ export class Orchestrator {
       { mode: string; lastClassified: number }
     >,
 
-    @inject(VisionService)
+    @inject("VisionService")
     private readonly visionService: VisionService,
 
-    @inject(WindowChangePoller)
+    @inject("WindowChangePoller")
     private readonly windowPoller: WindowChangePoller,
 
-    @inject(StudyingOCRPoller)
+    @inject("StudyingOCRPoller")
     private readonly studyingOcrPoller: StudyingOCRPoller,
 
-    @inject(IdleRevalidationPoller)
+    @inject("IdleRevalidationPoller")
     private readonly idleRevalPoller: IdleRevalidationPoller,
-
-    @inject("OcrService")
-    private readonly ocr: IOcrService,
 
     @inject("ClassificationService")
     private readonly classifier: IClassificationService,
@@ -51,19 +60,26 @@ export class Orchestrator {
     private readonly batcher: IBatcherService,
 
     @inject("LoggerService")
-    private readonly logger: ILogger,
+    public readonly logger: ILogger,
 
-    @inject(ConfigService)
+    @inject("PollingConfig")
     private readonly config: ConfigService
   ) {
     // state setup
     this.idleState = new IdleState(this);
     this.studyingState = new StudyingState(this);
     this.state = this.idleState;
-
+    this.cache.startTTL();
+    this.idleRevalPoller.setOnTick(() => this.IdleRevalidation());
+    this.windowPoller.setOnChange(
+      (oldWindow: string | null, newWindow: string) => {
+        this.onCommonWindowChange(oldWindow, newWindow);
+      }
+    );
+    this.studyingOcrPoller.setOnTick(() => {
+      this.runFullPipeline(this.currentWindow!);
+    });
   }
-
-
 
   start() {
     this.state.onEnter();
@@ -72,7 +88,7 @@ export class Orchestrator {
     this.state.onExit();
   }
 
-  @LogExecution()
+  //@LogExecution()
   private transitionStateOnWindowChange(newWindow: string) {
     // nothing is in the cache yet, assume it is studying to classify once and if it is idle, the classification will handle it
     if (!this.cache.has(newWindow)) {
@@ -107,8 +123,9 @@ export class Orchestrator {
     return nextMode;
   }
 
-  @LogExecution()
+  //@LogExecution()
   async runFullPipeline(newWindow: string) {
+    this.logger.info(`Running full pipeline for window: ${newWindow}`);
     const currentMode = this.cache.get(newWindow).mode;
 
     const text = await this.visionService.captureAndRecognizeText();
@@ -133,7 +150,7 @@ export class Orchestrator {
     // Placeholder
   }
 
-  @LogExecution()
+  // @LogExecution()
   IdleRevalidation() {
     const state = this.cache.get(this.currentWindow!);
     if (
@@ -150,7 +167,7 @@ export class Orchestrator {
     }
   }
 
-  @LogExecution()
+  // @LogExecution()
   updateOldWindowDate(oldWindow: string | null) {
     if (oldWindow && this.cache.has(oldWindow)) {
       const entry = this.cache.get(oldWindow);
@@ -182,6 +199,11 @@ export class Orchestrator {
   public stopStudyingOcrPolling(): void {
     this.studyingOcrPoller.stop();
   }
+
+  public stopIdleRevalidationPolling(): void {
+    this.idleRevalPoller.stop();
+  }
+
   public startIdleRevalidationPolling(): void {
     this.idleRevalPoller.start();
   }
