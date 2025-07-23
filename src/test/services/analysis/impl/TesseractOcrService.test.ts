@@ -15,13 +15,11 @@ const createMockLogger = (): ILogger => ({
   debug: vi.fn(),
 });
 
-/** Loads a test image from the __fixtures__ directory. */
 const loadImageFixture = (fileName: string): Buffer => {
   const imagePath = path.resolve(__dirname, '__fixtures__', fileName);
   return fs.readFileSync(imagePath);
 };
 
-// --- Test Suite ---
 
 describe('TesseractOcrService - Integration Test', () => {
   let ocrService: TesseractOcrService;
