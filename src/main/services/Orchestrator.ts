@@ -12,6 +12,7 @@ import { StudyingState } from "./orchestrator/impl/StudyingState";
 import { ConfigService } from "../configs/ConfigService";
 import { ILogger } from "../utils/ILogger";
 import { VisionServiceError, ClassificationError, CacheError } from "../errors/CustomErrors";
+import { ErrorHandler } from "../utils/ErrorHandler";
 
 // MUST UNDERSTAND TWO THINGS, WHY DO I NEED TO DO :
 /*
@@ -32,6 +33,7 @@ export class Orchestrator {
   private state: IOrchestratorState;
   private readonly idleState: IdleState;
   private readonly studyingState: StudyingState;
+  private readonly errorHandler: ErrorHandler;
   public currentWindow = "";
 
   constructor(
@@ -69,6 +71,7 @@ export class Orchestrator {
     this.idleState = new IdleState(this);
     this.studyingState = new StudyingState(this);
     this.state = this.idleState;
+    this.errorHandler = new ErrorHandler(this.logger);
     this.cache.startTTL();
     this.idleRevalPoller.setOnTick(() => this.IdleRevalidation());
     this.windowPoller.setOnChange(
@@ -250,20 +253,45 @@ export class Orchestrator {
   }
 
   async onCommonWindowChange(oldKey: string, newKey: string) {
-    if (oldKey) {
-      this.updateOldWindowDate(oldKey);
-    }
-    this.currentWindow = newKey;
-    
-    // For new windows, set initial state and run immediate classification
-    if (!this.cache.has(newKey)) {
-      this.cache.set(newKey, {
-        mode: "Studying",
-        lastClassified: Date.now(),
+    try {
+      if (oldKey) {
+        this.updateOldWindowDate(oldKey);
+      }
+      this.currentWindow = newKey;
+      
+      // For new windows, set initial state and run immediate classification
+      if (!this.cache.has(newKey)) {
+        this.cache.set(newKey, {
+          mode: "Studying",
+          lastClassified: Date.now(),
+        });
+        await this.runFullPipeline(newKey);
+      } else {
+        this.transitionStateOnWindowChange(newKey);
+      }
+    } catch (error) {
+      // Log the full error chain with proper context
+      this.errorHandler.logError(error as Error, {
+        operation: 'onCommonWindowChange',
+        metadata: { 
+          oldWindow: oldKey,
+          newWindow: newKey,
+          wasNewWindow: !this.cache.has(newKey)
+        }
       });
-      await this.runFullPipeline(newKey);
-    } else {
-      this.transitionStateOnWindowChange(newKey);
+      
+      // For window change errors, we want to continue running rather than crash
+      // The app should remain functional even if vision pipeline fails
+      this.logger.warn(`Window change handling failed for ${newKey}, continuing with cached state if available`);
+      
+      // Try to transition to a safe state if possible
+      if (this.cache.has(newKey)) {
+        try {
+          this.transitionStateOnWindowChange(newKey);
+        } catch (fallbackError) {
+          this.logger.error('Failed to transition to cached state, remaining in current state', fallbackError as Error);
+        }
+      }
     }
   }
 

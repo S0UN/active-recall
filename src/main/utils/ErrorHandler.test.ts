@@ -40,7 +40,7 @@ describe("ErrorHandler", () => {
         metadata: { userId: "user-456" }
       });
 
-      expect(mockLogger.error).toHaveBeenCalledWith("Caused by", {
+      expect(mockLogger.error).toHaveBeenCalledWith("  ↳ Caused by", {
         message: "Original cause",
         name: "Error",
         stack: originalError.stack
@@ -196,6 +196,70 @@ describe("ErrorHandler", () => {
         stack: error.stack,
         traceId: "trace-only"
       });
+    });
+  });
+});
+
+describe("ErrorHandler static methods", () => {
+  describe("getRootCause", () => {
+    it("should return the error itself if no cause", () => {
+      const error = new Error("Root error");
+      const root = ErrorHandler.getRootCause(error);
+      expect(root).toBe(error);
+    });
+
+    it("should traverse chain to find root cause", () => {
+      const rootError = new Error("Root cause");
+      const middleError = new VisionServiceError("Middle error", rootError);
+      const topError = new VisionServiceError("Top error", middleError);
+
+      const root = ErrorHandler.getRootCause(topError);
+      expect(root).toBe(rootError);
+      expect(root.message).toBe("Root cause");
+    });
+  });
+
+  describe("getErrorChain", () => {
+    it("should return single error if no cause", () => {
+      const error = new Error("Single error");
+      const chain = ErrorHandler.getErrorChain(error);
+      expect(chain).toHaveLength(1);
+      expect(chain[0]).toBe(error);
+    });
+
+    it("should return full error chain", () => {
+      const rootError = new Error("Root cause");
+      const middleError = new VisionServiceError("Middle error", rootError);
+      const topError = new VisionServiceError("Top error", middleError);
+
+      const chain = ErrorHandler.getErrorChain(topError);
+      expect(chain).toHaveLength(3);
+      expect(chain[0]).toBe(topError);
+      expect(chain[1]).toBe(middleError);
+      expect(chain[2]).toBe(rootError);
+    });
+  });
+
+  describe("formatErrorChain", () => {
+    it("should format single error without indentation", () => {
+      const error = new Error("Single error");
+      const formatted = ErrorHandler.formatErrorChain(error);
+      expect(formatted).toBe("Error: Single error");
+    });
+
+    it("should format error chain with proper indentation", () => {
+      const rootError = new Error("Root cause");
+      const middleError = new VisionServiceError("Middle error", rootError);
+      const topError = new VisionServiceError("Top error", middleError);
+
+      const formatted = ErrorHandler.formatErrorChain(topError);
+      const expected = [
+        "VisionServiceError: Top error",
+        "  ↳ VisionServiceError: Middle error",
+        "    ↳ Error: Root cause"
+      ].join('\n');
+      
+      expect(formatted).toBe(expected);
     });
   });
 });

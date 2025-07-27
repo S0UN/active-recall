@@ -26,15 +26,33 @@ export class ElectronCaptureService implements IScreenCaptureService {
         throw new ScreenCaptureError('No screen sources available');
       }
 
+      // Log available sources for debugging
+      console.log('Available screen sources:', sources.map(s => ({ 
+        id: s.id, 
+        name: s.name, 
+        display_id: s.display_id 
+      })));
+      console.log('Primary display ID:', primaryDisplay.id);
+
       // Find the matching source by display name (may vary by platform)
-      const primarySource = sources.find(
+      let primarySource = sources.find(
         (source) =>
           source.name.includes("Screen 1") ||
-          source.name.includes(primaryDisplay.id.toString())
+          source.name.includes(primaryDisplay.id.toString()) ||
+          source.name.toLowerCase().includes("entire screen") ||
+          source.name.toLowerCase().includes("screen") ||
+          (source as any).display_id === primaryDisplay.id.toString()
       );
 
+      // Fallback: use the first available screen source if no exact match
+      if (!primarySource && sources.length > 0) {
+        console.log('No exact match found, using first available screen source');
+        primarySource = sources[0];
+      }
+
       if (!primarySource) {
-        throw new ScreenCaptureError("Primary display source not found");
+        const availableNames = sources.map(s => s.name).join(', ');
+        throw new ScreenCaptureError(`Primary display source not found. Available sources: ${availableNames}`);
       }
 
       const buffer = primarySource.thumbnail.toPNG();

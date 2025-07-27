@@ -26,10 +26,22 @@ export class VisionService {
       const text = await this.ocrService.getTextFromImage(imageBuffer);
       return text || '';
     } catch (error) {
+      // Re-throw known domain errors to preserve error chain
       if (error instanceof ScreenCaptureError || error instanceof OcrProcessingError) {
         throw error;
       }
-      throw new VisionServiceError('Failed to capture and recognize text', error as Error);
+      
+      // Wrap unknown errors with context, preserving original as cause
+      const visionError = new VisionServiceError(
+        'Failed to capture and recognize text', 
+        error as Error
+      );
+      
+      this.logger.error(
+        `Vision service error in captureAndRecognizeText: ${error instanceof Error ? error.message : String(error)}`
+      );
+      
+      throw visionError;
     }
   }
 }
