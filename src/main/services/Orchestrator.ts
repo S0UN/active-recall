@@ -88,8 +88,16 @@ export class Orchestrator {
     });
   }
 
-  start() {
+  async start() {
+    await this.initializeServices();
     this.state.onEnter();
+  }
+
+  private async initializeServices(): Promise<void> {
+    // Initialize classifier if it has an init method
+    if ('init' in this.classifier && typeof this.classifier.init === 'function') {
+      await this.classifier.init();
+    }
   }
   stop() {
     this.state.onExit();
@@ -135,8 +143,10 @@ export class Orchestrator {
     
     try {
       const currentMode = this.getCurrentWindowMode(newWindow);
-      const { text, classificationResult } = await this.captureAndClassifyWindow();
       
+      const { text, classificationResult } = await this.captureAndClassifyWindow();
+      this.logger.info(`Captured text: ${text}`);
+      this.logger.info(`Classification result: ${classificationResult}`);
       this.handleModeTransition(newWindow, currentMode, classificationResult);
       await this.processStudyingContent(classificationResult, text);
     } catch (error) {

@@ -132,7 +132,6 @@ export class WindowChangePoller extends BasePoller implements IPoller {
   }
 
   private handleWindowChange(windowIdentifier: string): void {
-    Logger.info(`Current active window: ${this.currentWindow}, New window: ${windowIdentifier}`);
     
     if (this.isWindowChange(windowIdentifier)) {
       this.notifyWindowChange(windowIdentifier);

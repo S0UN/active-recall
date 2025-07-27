@@ -68,7 +68,7 @@ app.whenReady().then(async () => {
     }
   }
   
-  orchestrator.start();
+  await orchestrator.start();
 });
 
 app.on('window-all-closed', () => {

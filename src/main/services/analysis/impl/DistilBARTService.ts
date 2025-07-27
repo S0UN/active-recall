@@ -3,6 +3,7 @@ import { IClassificationService, ClassificationResult } from '../IClassification
 import { pipeline, env } from '@xenova/transformers';
 import { ClassificationError } from '../../../errors/CustomErrors';
 import { z } from 'zod';
+import Logger from 'electron-log';
 
 // Zod Schemas - Define first, derive types
 const ClassificationTextSchema = z.string()
@@ -21,7 +22,7 @@ const LabelSchema = z.string()
 
 @injectable()
 export class DistilBARTService implements IClassificationService {
-  private static readonly STUDYING_THRESHOLD = 0.80;
+  private static readonly STUDYING_THRESHOLD = 0.55;
   private static readonly IDLE_THRESHOLD = 0.15;
   private static readonly DEFAULT_LABELS = [ "Computer Science",
     "Programming",
@@ -59,7 +60,9 @@ export class DistilBARTService implements IClassificationService {
     }
 
     const confidence = this.findMaxScore(result.scores);
+    Logger.info(`Classification confidence: ${confidence}`);
     const classification = this.determineClassification(confidence);
+    
 
     return { classification, confidence };
   }

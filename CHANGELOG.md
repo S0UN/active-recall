@@ -20,4 +20,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed screen capture error on macOS by updating source matching logic to handle platform-specific screen naming conventions ("Entire screen" on macOS vs "Screen 1" on other platforms)
 - Added fallback logic to use first available screen source when primary display match fails
 - Improved error messages to include list of available screen sources for easier debugging
+- Fixed DistilBARTService initialization error by adding proper service initialization in Orchestrator startup sequence
 ### Security
