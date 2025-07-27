@@ -1,4 +1,4 @@
-# Development Guidelines for GEMINI
+# Development Guidelines for Claude
 
 ## Core Philosophy
 

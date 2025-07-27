@@ -7,11 +7,11 @@ import { IdleRevalidationPoller } from "./polling/impl/IdleRevalidationPoller";
 import { IClassificationService } from "./analysis/IClassificationService";
 import { IBatcherService } from "./network/IBatcherService";
 import { VisionService } from "./processing/impl/VisionService";
-import { LogExecution } from "../utils/LogExecution";
 import { ICache } from "../utils/ICache";
 import { StudyingState } from "./orchestrator/impl/StudyingState";
 import { ConfigService } from "../configs/ConfigService";
 import { ILogger } from "../utils/ILogger";
+import { VisionServiceError, ClassificationError, CacheError } from "../errors/CustomErrors";
 
 // MUST UNDERSTAND TWO THINGS, WHY DO I NEED TO DO :
 /*
@@ -32,7 +32,7 @@ export class Orchestrator {
   private state: IOrchestratorState;
   private readonly idleState: IdleState;
   private readonly studyingState: StudyingState;
-  public currentWindow: string | null = null;
+  public currentWindow = "";
 
   constructor(
     @inject("WindowCache")
@@ -72,12 +72,16 @@ export class Orchestrator {
     this.cache.startTTL();
     this.idleRevalPoller.setOnTick(() => this.IdleRevalidation());
     this.windowPoller.setOnChange(
-      (oldWindow: string | null, newWindow: string) => {
+      (oldWindow: string, newWindow: string) => {
         this.onCommonWindowChange(oldWindow, newWindow);
       }
     );
     this.studyingOcrPoller.setOnTick(() => {
-      this.runFullPipeline(this.currentWindow!);
+      if (!this.currentWindow) {
+        this.logger.warn('No current window available for OCR polling');
+        return;
+      }
+      this.runFullPipeline(this.currentWindow);
     });
   }
 
@@ -118,48 +122,81 @@ export class Orchestrator {
   }
 
   async captureAndClassifyText(newWindow: string): Promise<string> {
-    const text = await this.visionService.captureAndRecognizeText();
-    const nextMode = await this.classifier.classify(text);
-    return nextMode;
+    if (!newWindow) {
+      throw new Error('Window identifier is required');
+    }
+    
+    try {
+      const text = await this.visionService.captureAndRecognizeText();
+      const nextMode = await this.classifier.classify(text);
+      return nextMode;
+    } catch (error) {
+      if (error instanceof VisionServiceError) {
+        throw error;
+      }
+      if (error instanceof ClassificationError) {
+        throw error;
+      }
+      throw new VisionServiceError('Failed to capture and classify text', error as Error);
+    }
   }
 
   //@LogExecution()
   async runFullPipeline(newWindow: string) {
+    if (!newWindow) {
+      throw new Error('Window identifier is required');
+    }
+    
     this.logger.info(`Running full pipeline for window: ${newWindow}`);
-    const currentMode = this.cache.get(newWindow).mode;
+    
+    try {
+      const cacheEntry = this.cache.get(newWindow);
+      if (!cacheEntry) {
+        throw new CacheError(`No cache entry found for window: ${newWindow}`);
+      }
+      
+      const currentMode = cacheEntry.mode;
+      const text = await this.visionService.captureAndRecognizeText();
+      const nextMode = await this.classifier.classify(text);
 
-    const text = await this.visionService.captureAndRecognizeText();
+      // Update state only if mode changed
+      if (currentMode === "Idle" && nextMode === "Studying") {
+        this.cache.set(newWindow, { mode: nextMode, lastClassified: Date.now() });
+        this.changeState(this.studyingState);
+      }
 
-    const nextMode = await this.classifier.classify(text);
+      if (currentMode === "Studying" && nextMode === "Idle") {
+        this.cache.set(newWindow, { mode: nextMode, lastClassified: Date.now() });
+        this.changeState(this.idleState);
+      }
 
-    //maybe check if its different first, we dont want to keep setting the same mode
-    if (currentMode === "Idle" && nextMode === "Studying") {
-      this.cache.set(newWindow, { mode: nextMode, lastClassified: Date.now() });
-      this.changeState(this.studyingState);
+      if (nextMode === "Studying") {
+        this.batcher.add(text);
+        await this.batcher.flushIfNeeded();
+      }
+    } catch (error) {
+      if (error instanceof VisionServiceError || error instanceof ClassificationError || error instanceof CacheError) {
+        throw error;
+      }
+      throw new VisionServiceError('Failed to run full pipeline', error as Error);
     }
-
-    if (currentMode === "Studying" && nextMode === "Idle") {
-      this.cache.set(newWindow, { mode: nextMode, lastClassified: Date.now() });
-      this.changeState(this.idleState);
-    }
-
-    if (nextMode === "Studying") {
-      this.batcher.add(text);
-      await this.batcher.flushIfNeeded();
-    }
-    // Placeholder
   }
 
   // @LogExecution()
   IdleRevalidation() {
-    const state = this.cache.get(this.currentWindow!);
+    if (!this.currentWindow) {
+      this.logger.warn('No current window available for idle revalidation');
+      return;
+    }
+    
+    const state = this.cache.get(this.currentWindow);
     if (
       !state ||
       (Date.now() - state.lastClassified >
         this.config.idleRevalidationIntervalMs &&
         state.mode === "Idle")
     ) {
-      this.runFullPipeline(this.currentWindow!);
+      this.runFullPipeline(this.currentWindow);
     } else {
       this.logger.info(
         `Window ${this.currentWindow} is still active, no reclassification needed.`
@@ -168,20 +205,27 @@ export class Orchestrator {
   }
 
   // @LogExecution()
-  updateOldWindowDate(oldWindow: string | null) {
-    if (oldWindow && this.cache.has(oldWindow)) {
+  updateOldWindowDate(oldWindow: string) {
+    if (!oldWindow) {
+      return;
+    }
+    
+    if (this.cache.has(oldWindow)) {
       const entry = this.cache.get(oldWindow);
-      entry.lastClassified = Date.now();
-      this.cache.set(oldWindow, entry);
-      this.logger.info(`Updated last seen for window: ${oldWindow}`);
+      if (entry) {
+        entry.lastClassified = Date.now();
+        this.cache.set(oldWindow, entry);
+        this.logger.info(`Updated last seen for window: ${oldWindow}`);
+      }
     } else {
       this.logger.warn(`No entry found for window: ${oldWindow}`);
     }
-    // Placeholder
   }
 
-  async onCommonWindowChange(oldKey: string | null, newKey: string) {
-    this.updateOldWindowDate(oldKey);
+  async onCommonWindowChange(oldKey: string, newKey: string) {
+    if (oldKey) {
+      this.updateOldWindowDate(oldKey);
+    }
     this.transitionStateOnWindowChange(newKey);
   }
 

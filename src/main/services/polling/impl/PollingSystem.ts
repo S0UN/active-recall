@@ -1,6 +1,5 @@
 import { inject, injectable } from 'tsyringe';
 import { IPollingSystem } from '../IPollingSystem';
-import { LogExecution } from '../../../utils/LogExecution';
 import { ILogger } from '../../../utils/ILogger';
 @injectable()
 export class PollingSystem implements IPollingSystem {
@@ -10,7 +9,6 @@ export class PollingSystem implements IPollingSystem {
     @inject("LoggerService")
     private readonly logger: ILogger
   ) {
-    // No constructor parameters needed
   }
 
 
@@ -26,7 +24,6 @@ WRONG FOFR SOME REASON
   }
 */
 
-//@LogExecution()
 register(
   name: string,
   interval: number,
@@ -36,10 +33,9 @@ register(
     return;
   }
   const timer = setInterval(() => {
-    // Wrap in Promise.resolve so we catch both sync & async errors:
     Promise
-      .resolve()              // start a new microtask
-      .then(() => callback()) // call your callback (may return Promise)
+      .resolve()           
+      .then(() => callback()) 
       .catch(err => {
         this.logger.error(`[${name}] poll error:`, err as Error);
       });

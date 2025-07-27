@@ -1,7 +1,5 @@
 import { IOrchestratorState } from '../IOrchestratorState';
 import { Orchestrator } from '../../Orchestrator';
-import { ILogger } from '../../../utils/ILogger';
-import { inject } from 'tsyringe';
 export class IdleState implements IOrchestratorState {
   constructor(private readonly orchestrator: Orchestrator) {}
   onEnter() {

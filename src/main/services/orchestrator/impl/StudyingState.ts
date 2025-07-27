@@ -11,7 +11,7 @@ export class StudyingState implements IOrchestratorState {
     this.orchestrator.onCommonWindowChange(oldKey, newKey);
   }
   onTick() {
-    this.orchestrator.runFullPipeline(this.orchestrator.currentWindow!);
+    this.orchestrator.runFullPipeline(this.orchestrator.currentWindow);
   }
   onExit() {
       this.orchestrator.logger.info('Exiting Studying State');

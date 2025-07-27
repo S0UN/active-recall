@@ -1,33 +1,54 @@
 import { injectable } from "tsyringe";
 import { desktopCapturer, screen } from "electron";
 import { IScreenCaptureService } from "../IScreenCaptureService";
-import { LogExecution } from '../../../utils/LogExecution';
+import { ScreenCaptureError } from '../../../errors/CustomErrors';
 
 @injectable()
 export class ElectronCaptureService implements IScreenCaptureService {
 
   public async captureScreen(): Promise<Buffer> {
-    const sources = await desktopCapturer.getSources({
-      types: ["screen"],
-      thumbnailSize: {
-        width: screen.getPrimaryDisplay().size.width,
-        height: screen.getPrimaryDisplay().size.height,
-      },
-    });
+    try {
+      const primaryDisplay = screen.getPrimaryDisplay();
+      
+      if (!primaryDisplay) {
+        throw new ScreenCaptureError('No primary display found');
+      }
+      
+      const sources = await desktopCapturer.getSources({
+        types: ["screen"],
+        thumbnailSize: {
+          width: primaryDisplay.size.width,
+          height: primaryDisplay.size.height,
+        },
+      });
 
-    const primaryDisplay = screen.getPrimaryDisplay();
+      if (!sources || sources.length === 0) {
+        throw new ScreenCaptureError('No screen sources available');
+      }
 
-    // Find the matching source by display name (may vary by platform)
-    const primarySource = sources.find(
-      (source) =>
-        source.name.includes("Screen 1") ||
-        source.name.includes(primaryDisplay.id.toString())
-    );
+      // Find the matching source by display name (may vary by platform)
+      const primarySource = sources.find(
+        (source) =>
+          source.name.includes("Screen 1") ||
+          source.name.includes(primaryDisplay.id.toString())
+      );
 
-    if (!primarySource) {
-      throw new Error("Primary display source not found");
+      if (!primarySource) {
+        throw new ScreenCaptureError("Primary display source not found");
+      }
+
+      const buffer = primarySource.thumbnail.toPNG();
+      
+      if (!buffer || buffer.length === 0) {
+        throw new ScreenCaptureError('Screen capture produced empty buffer');
+      }
+      
+      return buffer;
+    } catch (error) {
+      if (error instanceof ScreenCaptureError) {
+        throw error;
+      }
+      throw new ScreenCaptureError('Failed to capture screen', error as Error);
     }
-
-    return primarySource.thumbnail.toPNG();
   }
 }

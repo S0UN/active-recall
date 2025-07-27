@@ -1,15 +1,36 @@
 {
   "compilerOptions": {
-    // (you can leave most of your existing options)
-    "target":       "ES2022",
-    "module":       "commonjs",
-    "outDir":       "./dist",
-    "strict":       true,
+    
+    "baseUrl": "src",
+    "paths": {
+      "@fixtures": ["test/__fixtures__/"],
+      "@fixtures/*": ["test/__fixtures__/*"],
+      "@test/*": ["test/*"],
+      "@main/*": ["main/*"],
+      "@services/*": ["main/services/*"],
+      "@utils/*": ["main/utils/*"],
+      "@renderer/*": ["renderer/*"],
+    },
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "target": "ES2022",
+    "module": "commonjs",
+    "outDir": "./dist",
+    "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
+    "emitDecoratorMetadata": true
   },
   "include": ["src"]
 }

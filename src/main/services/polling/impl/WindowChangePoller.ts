@@ -3,15 +3,15 @@ import { injectable, inject } from "tsyringe";
 import activeWindow from "active-win";
 import { IPollingSystem } from "../IPollingSystem";
 import { ConfigService } from "../../../configs/ConfigService";
-import { LogExecution } from "../../../utils/LogExecution";
 import { BasePoller } from "./BasePoller";
 import { IPoller } from "../IPoller";
 import Logger from "electron-log";
+import { WindowDetectionError } from "../../../errors/CustomErrors";
 
 @injectable()
 export class WindowChangePoller extends BasePoller implements IPoller {
-  private currentWindow: string | null = null;
-  private onChange: (old: string | null, next: string) => void = () => {};
+  private currentWindow = "";
+  private onChange: (old: string, next: string) => void = () => {};
 
   constructor(
     @inject("PollingSystem") polling: IPollingSystem,
@@ -27,7 +27,7 @@ export class WindowChangePoller extends BasePoller implements IPoller {
    * Call this from your Orchestrator (or WindowManager)
    * to wire up the real callback before you call start().
    */
-  public setOnChange(cb: (old: string | null, next: string) => void): void {
+  public setOnChange(cb: (old: string, next: string) => void): void {
     this.onChange = cb;
   }
 
@@ -35,7 +35,10 @@ export class WindowChangePoller extends BasePoller implements IPoller {
   try {
     const window = await activeWindow();
     
-    if (!window) return;
+    if (!window) {
+      Logger.warn('No active window detected');
+      return;
+    }
 
     let windowIdentifier: string;
     
@@ -83,7 +86,7 @@ export class WindowChangePoller extends BasePoller implements IPoller {
       this.onChange(old, windowIdentifier);
     }
   } catch (error) {
-    Logger.error('Error getting active window:', error);
+    throw new WindowDetectionError('Failed to detect active window', error as Error);
   }
 }
 }

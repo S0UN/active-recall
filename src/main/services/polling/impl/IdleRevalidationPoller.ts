@@ -7,7 +7,6 @@ import { IPoller } from "../IPoller";
 
 @injectable()
 export class IdleRevalidationPoller extends BasePoller implements IPoller {
-  // default no-op
   private onTickCallback: () => void = () => {};
 
   constructor(
@@ -22,7 +21,6 @@ export class IdleRevalidationPoller extends BasePoller implements IPoller {
     );
   }
 
-  /** Wire in the real callback before you call start() */
   public setOnTick(cb: () => void): void {
     this.onTickCallback = cb;
   }

@@ -1,6 +1,5 @@
 import { IPoller } from '../IPoller';
 import { IPollingSystem } from '../IPollingSystem';
-import { LogExecution } from '../../../utils/LogExecution';
 
 export class BasePoller implements IPoller {
   constructor(
