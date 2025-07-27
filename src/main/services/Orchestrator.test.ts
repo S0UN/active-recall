@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Orchestrator } from "./Orchestrator";
-import { IOrchestratorState } from "./orchestrator/IOrchestratorState";
 import { WindowChangePoller } from "./polling/impl/WindowChangePoller";
 import { StudyingOCRPoller } from "./polling/impl/StudyingOCRPoller";
 import { IdleRevalidationPoller } from "./polling/impl/IdleRevalidationPoller";
@@ -10,8 +9,9 @@ import { VisionService } from "./processing/impl/VisionService";
 import { ICache } from "../utils/ICache";
 import { ConfigService } from "../configs/ConfigService";
 import { ILogger } from "../utils/ILogger";
-import { VisionServiceError, ClassificationError, CacheError } from "../errors/CustomErrors";
+import {  CacheError } from "../errors/CustomErrors";
 
+// Test Helpers - Mock Factories
 const createMockLogger = (): ILogger => ({
   info: vi.fn(),
   warn: vi.fn(),
@@ -24,9 +24,7 @@ const createMockCache = (): ICache<string, { mode: string; lastClassified: numbe
   set: vi.fn(),
   has: vi.fn(),
   delete: vi.fn(),
-  clear: vi.fn(),
   startTTL: vi.fn(),
-  stopTTL: vi.fn(),
 });
 
 const createMockVisionService = (): VisionService => ({
@@ -58,7 +56,6 @@ const createMockClassifier = (): IClassificationService => ({
 const createMockBatcher = (): IBatcherService => ({
   add: vi.fn(),
   flushIfNeeded: vi.fn(),
-  flush: vi.fn(),
 });
 
 const createMockConfig = (): ConfigService => ({
@@ -68,6 +65,31 @@ const createMockConfig = (): ConfigService => ({
   idleRevalidationThresholdMs: 900000,
   windowCacheTTL: 900000,
 });
+
+// Test Helpers - Setup Functions
+const setupCacheEntry = (mockCache: ICache<string, { mode: string; lastClassified: number }>, mode: string, timestamp?: number): void => {
+  const entry = { mode, lastClassified: timestamp || Date.now() };
+  vi.mocked(mockCache.get).mockReturnValue(entry);
+  vi.mocked(mockCache.has).mockReturnValue(true);
+};
+
+const setupVisionPipeline = (mockVision: VisionService, mockClassifier: IClassificationService, text: string, classification: string): void => {
+  vi.mocked(mockVision.captureAndRecognizeText).mockResolvedValue(text);
+  vi.mocked(mockClassifier.classify).mockResolvedValue(classification);
+};
+
+const expectCacheUpdate = (mockCache: ICache<string, { mode: string; lastClassified: number }>, windowId: string, mode: string): void => {
+  expect(mockCache.set).toHaveBeenCalledWith(windowId, {
+    mode,
+    lastClassified: expect.any(Number)
+  });
+};
+
+const expectPollerCallbacks = (mockIdlePoller: IdleRevalidationPoller, mockWindowPoller: WindowChangePoller, mockStudyingPoller: StudyingOCRPoller): void => {
+  expect(mockIdlePoller.setOnTick).toHaveBeenCalledWith(expect.any(Function));
+  expect(mockWindowPoller.setOnChange).toHaveBeenCalledWith(expect.any(Function));
+  expect(mockStudyingPoller.setOnTick).toHaveBeenCalledWith(expect.any(Function));
+};
 
 describe("Orchestrator", () => {
   let orchestrator: Orchestrator;
@@ -111,76 +133,14 @@ describe("Orchestrator", () => {
     });
 
     it("should set up polling callbacks during construction", () => {
-      expect(mockIdleRevalPoller.setOnTick).toHaveBeenCalledWith(expect.any(Function));
-      expect(mockWindowPoller.setOnChange).toHaveBeenCalledWith(expect.any(Function));
-      expect(mockStudyingOcrPoller.setOnTick).toHaveBeenCalledWith(expect.any(Function));
+      expectPollerCallbacks(mockIdleRevalPoller, mockWindowPoller, mockStudyingOcrPoller);
       expect(mockCache.startTTL).toHaveBeenCalled();
     });
   });
 
-  describe("captureAndClassifyText", () => {
-    it("should successfully capture and classify text", async () => {
-      const windowId = "test-window";
-      const capturedText = "Some captured text";
-      const classificationResult = "Studying";
-
-      vi.mocked(mockVisionService.captureAndRecognizeText).mockResolvedValue(capturedText);
-      vi.mocked(mockClassifier.classify).mockResolvedValue(classificationResult);
-
-      const result = await orchestrator.captureAndClassifyText(windowId);
-
-      expect(result).toBe(classificationResult);
-      expect(mockVisionService.captureAndRecognizeText).toHaveBeenCalled();
-      expect(mockClassifier.classify).toHaveBeenCalledWith(capturedText);
-    });
-
-    it("should throw error for empty window identifier", async () => {
-      await expect(orchestrator.captureAndClassifyText(""))
-        .rejects
-        .toThrow("Window identifier is required");
-    });
-
-    it("should propagate VisionServiceError", async () => {
-      const visionError = new VisionServiceError("Vision failed");
-      
-      vi.mocked(mockVisionService.captureAndRecognizeText).mockRejectedValue(visionError);
-
-      await expect(orchestrator.captureAndClassifyText("test-window"))
-        .rejects
-        .toThrow(VisionServiceError);
-    });
-
-    it("should propagate ClassificationError", async () => {
-      const classificationError = new ClassificationError("Classification failed");
-      
-      vi.mocked(mockVisionService.captureAndRecognizeText).mockResolvedValue("text");
-      vi.mocked(mockClassifier.classify).mockRejectedValue(classificationError);
-
-      await expect(orchestrator.captureAndClassifyText("test-window"))
-        .rejects
-        .toThrow(ClassificationError);
-    });
-
-    it("should wrap unknown errors in VisionServiceError", async () => {
-      const unknownError = new Error("Unknown error");
-      
-      vi.mocked(mockVisionService.captureAndRecognizeText).mockRejectedValue(unknownError);
-
-      await expect(orchestrator.captureAndClassifyText("test-window"))
-        .rejects
-        .toThrow(VisionServiceError);
-    });
-  });
 
   describe("runFullPipeline", () => {
     const mockWindow = "test-window";
-    const mockCacheEntry = { mode: "Idle", lastClassified: Date.now() };
-
-    beforeEach(() => {
-      vi.mocked(mockCache.get).mockReturnValue(mockCacheEntry);
-      vi.mocked(mockVisionService.captureAndRecognizeText).mockResolvedValue("captured text");
-      vi.mocked(mockClassifier.classify).mockResolvedValue("Studying");
-    });
 
     it("should throw error for empty window identifier", async () => {
       await expect(orchestrator.runFullPipeline(""))
@@ -197,41 +157,33 @@ describe("Orchestrator", () => {
     });
 
     it("should transition from Idle to Studying state", async () => {
-      const idleCacheEntry = { mode: "Idle", lastClassified: Date.now() };
-      vi.mocked(mockCache.get).mockReturnValue(idleCacheEntry);
-      vi.mocked(mockClassifier.classify).mockResolvedValue("Studying");
+      setupCacheEntry(mockCache, "Idle");
+      setupVisionPipeline(mockVisionService, mockClassifier, "captured text", "Studying");
 
       const changeStateSpy = vi.spyOn(orchestrator, 'changeState');
 
       await orchestrator.runFullPipeline(mockWindow);
 
-      expect(mockCache.set).toHaveBeenCalledWith(mockWindow, {
-        mode: "Studying",
-        lastClassified: expect.any(Number)
-      });
+      expectCacheUpdate(mockCache, mockWindow, "Studying");
       expect(changeStateSpy).toHaveBeenCalled();
     });
 
     it("should transition from Studying to Idle state", async () => {
-      const studyingCacheEntry = { mode: "Studying", lastClassified: Date.now() };
-      vi.mocked(mockCache.get).mockReturnValue(studyingCacheEntry);
-      vi.mocked(mockClassifier.classify).mockResolvedValue("Idle");
+      setupCacheEntry(mockCache, "Studying");
+      setupVisionPipeline(mockVisionService, mockClassifier, "captured text", "Idle");
 
       const changeStateSpy = vi.spyOn(orchestrator, 'changeState');
 
       await orchestrator.runFullPipeline(mockWindow);
 
-      expect(mockCache.set).toHaveBeenCalledWith(mockWindow, {
-        mode: "Idle",
-        lastClassified: expect.any(Number)
-      });
+      expectCacheUpdate(mockCache, mockWindow, "Idle");
       expect(changeStateSpy).toHaveBeenCalled();
     });
 
     it("should add text to batcher when in Studying mode", async () => {
       const capturedText = "study material text";
-      vi.mocked(mockVisionService.captureAndRecognizeText).mockResolvedValue(capturedText);
-      vi.mocked(mockClassifier.classify).mockResolvedValue("Studying");
+      setupCacheEntry(mockCache, "Idle");
+      setupVisionPipeline(mockVisionService, mockClassifier, capturedText, "Studying");
 
       await orchestrator.runFullPipeline(mockWindow);
 
@@ -240,16 +192,16 @@ describe("Orchestrator", () => {
     });
 
     it("should not change state when mode remains the same", async () => {
-      const studyingCacheEntry = { mode: "Studying", lastClassified: Date.now() };
-      vi.mocked(mockCache.get).mockReturnValue(studyingCacheEntry);
-      vi.mocked(mockClassifier.classify).mockResolvedValue("Studying");
+      const capturedText = "study material text";
+      setupCacheEntry(mockCache, "Studying");
+      setupVisionPipeline(mockVisionService, mockClassifier, capturedText, "Studying");
 
       const changeStateSpy = vi.spyOn(orchestrator, 'changeState');
 
       await orchestrator.runFullPipeline(mockWindow);
 
       expect(changeStateSpy).not.toHaveBeenCalled();
-      expect(mockBatcher.add).toHaveBeenCalled();
+      expect(mockBatcher.add).toHaveBeenCalledWith(capturedText);
     });
   });
 

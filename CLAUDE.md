@@ -284,6 +284,7 @@ We organize code around small, single‑responsibility classes wired together vi
 - **No nested if/else statements** - use early returns, guard clauses, or composition
 - **Avoid deep nesting** in general (max 2 levels)
 - Keep functions small and focused on a single responsibility
+- **Maintain consistent abstraction levels** – top‑level (or “orchestration”) functions should read like a clear sequence of steps. Don’t mix high‑level flow and low‑level details in the same function; delegate implementation details to well‑named helper functions. Follow this even for test cases, make test cases very readable. 
 - Prefer flat, readable code over clever abstractions
 
 ### Naming Conventions
@@ -1054,6 +1055,7 @@ When suggesting or making changes:
 - Keep changes small and incremental
 - Ensure all TypeScript strict mode requirements are met
 - Provide rationale for significant design decisions
+- IMPORTANT, AFTER MAKING CHANGE, PUT WHAT YOUR CHANGES WERE INTO A CHANGE.MD DOC WHERE YOU SAY WHAT FILES YOU CHANGED AND WHY
 
 **If you find yourself writing production code without a failing test, STOP immediately and write the test first.**
 
@@ -1289,6 +1291,86 @@ const processOrder = (order: Order) => {
 - [Testing Library Principles](https://testing-library.com/docs/guiding-principles)
 - [Kent C. Dodds Testing JavaScript](https://testingjavascript.com/)
 - [Functional Programming in TypeScript](https://gcanti.github.io/fp-ts/)
+
+## AI Testing with Local Models (Git LFS)
+
+### Real AI Testing - Successfully Implemented
+
+**Problem Solved**: DistilBERT tests were failing due to network restrictions when downloading HuggingFace models online.
+
+**Solution**: Git LFS approach for local model storage enables real AI testing without network dependencies.
+
+#### Setup Process (Completed)
+```bash
+# 1. Install Git LFS
+brew install git-lfs
+git lfs install
+
+# 2. Clone model locally  
+mkdir -p models
+cd models && git clone https://huggingface.co/Xenova/distilbert-base-uncased-mnli ./distilbert-mnli
+
+# 3. Configure Transformers.js for offline usage (automatic in DistilBARTService.init())
+env.allowRemoteModels = false;
+env.localModelPath = './models/';
+```
+
+#### Testing Results
+- **Unit Tests**: 21 tests passing (mocked AI responses)
+- **Real AI Tests**: 10 tests passing (actual DistilBERT classification)
+- **Performance**: ~20-30ms per classification with local models
+- **Consistency**: Real AI produces identical results for identical input
+- **Coverage**: All threshold logic, label management, and edge cases tested
+
+#### Key Implementation Details
+```typescript
+// DistilBARTService.ts - Offline configuration
+public async init(): Promise<void> {
+  // Configure Transformers.js for offline models
+  env.allowRemoteModels = false;
+  env.localModelPath = './models/';
+  
+  this.classifierPromise = pipeline(
+    'zero-shot-classification',
+    'distilbert-mnli'  // References local ./models/distilbert-mnli/
+  );
+}
+```
+
+#### Mock Updates Required
+When adding `env` import from `@xenova/transformers`, must update mocks:
+```typescript
+vi.mock('@xenova/transformers', () => ({
+  pipeline: vi.fn(),
+  env: {
+    allowRemoteModels: true,
+    localModelPath: ''
+  },
+}));
+```
+
+#### Benefits Achieved
+- ✅ Real AI testing without network dependencies
+- ✅ Consistent results across all environments
+- ✅ Fast execution (no download delays)
+- ✅ No authentication or rate limiting issues
+- ✅ Works reliably in CI/CD environments
+- ✅ Same approach can be used for other HuggingFace models
+
+#### Model Storage Structure
+```
+models/
+└── distilbert-mnli/
+    ├── config.json
+    ├── tokenizer.json
+    ├── tokenizer_config.json  
+    ├── vocab.txt
+    └── onnx/
+        ├── model.onnx (~500MB)
+        └── [other quantized variants]
+```
+
+**Note**: This approach bridges the gap between TesseractOCR (bundled models) and DistilBERT (downloaded models), giving us consistent real AI testing across all services.
 
 ## Summary
 

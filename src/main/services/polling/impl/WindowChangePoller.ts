@@ -32,61 +32,120 @@ export class WindowChangePoller extends BasePoller implements IPoller {
   }
 
   private async poll(): Promise<void> {
-  try {
-    const window = await activeWindow();
-    
-    if (!window) {
-      Logger.warn('No active window detected');
-      return;
-    }
-
-    let windowIdentifier: string;
-    
-    // Handle browsers with empty titles
-    if (!window.title || window.title.trim() === '') {
-      // Check if URL is available (macOS only)
-      if ('url' in window && typeof window.url === 'string' && window.url) {
-        // macOS: Use URL for better browser identification
-        try {
-          const url = new URL(window.url);
-          
-          if (url.protocol === 'favorites:') {
-            windowIdentifier = `${window.owner.name} - Favorites`;
-          } else if (url.hostname) {
-            windowIdentifier = `${window.owner.name} - ${url.hostname}`;
-          } else {
-            windowIdentifier = `${window.owner.name} - ${window.url}`;
-          }
-        } catch (urlError) {
-          windowIdentifier = `${window.owner.name} - ${window.url}`;
-        }
-      } else {
-        // Windows/Linux: Use app name + process info for better identification
-        if (window.owner.name === 'Google Chrome' || window.owner.name === 'chrome.exe') {
-          windowIdentifier = `Chrome - Active Tab`;
-        } else if (window.owner.name === 'Safari') {
-          windowIdentifier = `Safari - Active Tab`;
-        } else if (window.owner.name.toLowerCase().includes('firefox')) {
-          windowIdentifier = `Firefox - Active Tab`;
-        } else if (window.owner.name.toLowerCase().includes('edge')) {
-          windowIdentifier = `Edge - Active Tab`;
-        } else {
-          windowIdentifier = `${window.owner.name} - No Title`;
-        }
+    try {
+      const window = await this.detectActiveWindow();
+      
+      if (!window) {
+        Logger.warn('No active window detected');
+        return;
       }
-    } else {
-      windowIdentifier = window.title;
+
+      const windowIdentifier = this.createWindowIdentifier(window);
+      this.handleWindowChange(windowIdentifier);
+    } catch (error) {
+      throw new WindowDetectionError('Failed to detect active window', error as Error);
+    }
+  }
+
+  private async detectActiveWindow(): Promise<any> {
+    return await activeWindow();
+  }
+
+  private createWindowIdentifier(window: any): string {
+    if (this.hasValidTitle(window)) {
+      return window.title;
     }
     
+    return this.createFallbackIdentifier(window);
+  }
+
+  private hasValidTitle(window: any): boolean {
+    return window.title && window.title.trim() !== '';
+  }
+
+  private createFallbackIdentifier(window: any): string {
+    if (this.hasUrlInformation(window)) {
+      return this.createUrlBasedIdentifier(window);
+    }
+    
+    return this.createBrowserSpecificIdentifier(window);
+  }
+
+  private hasUrlInformation(window: any): boolean {
+    return 'url' in window && typeof window.url === 'string' && window.url;
+  }
+
+  private createUrlBasedIdentifier(window: any): string {
+    try {
+      const url = new URL(window.url);
+      
+      if (url.protocol === 'favorites:') {
+        return `${window.owner.name} - Favorites`;
+      }
+      
+      if (url.hostname) {
+        return `${window.owner.name} - ${url.hostname}`;
+      }
+      
+      return `${window.owner.name} - ${window.url}`;
+    } catch (urlError) {
+      return `${window.owner.name} - ${window.url}`;
+    }
+  }
+
+  private createBrowserSpecificIdentifier(window: any): string {
+    const appName = window.owner.name;
+    
+    if (this.isChromeApplication(appName)) {
+      return 'Chrome - Active Tab';
+    }
+    
+    if (this.isSafariApplication(appName)) {
+      return 'Safari - Active Tab';
+    }
+    
+    if (this.isFirefoxApplication(appName)) {
+      return 'Firefox - Active Tab';
+    }
+    
+    if (this.isEdgeApplication(appName)) {
+      return 'Edge - Active Tab';
+    }
+    
+    return `${appName} - No Title`;
+  }
+
+  private isChromeApplication(appName: string): boolean {
+    return appName === 'Google Chrome' || appName === 'chrome.exe';
+  }
+
+  private isSafariApplication(appName: string): boolean {
+    return appName === 'Safari';
+  }
+
+  private isFirefoxApplication(appName: string): boolean {
+    return appName.toLowerCase().includes('firefox');
+  }
+
+  private isEdgeApplication(appName: string): boolean {
+    return appName.toLowerCase().includes('edge');
+  }
+
+  private handleWindowChange(windowIdentifier: string): void {
     Logger.info(`Current active window: ${this.currentWindow}, New window: ${windowIdentifier}`);
     
-    if (windowIdentifier !== this.currentWindow) {
-      const old = this.currentWindow;
-      this.currentWindow = windowIdentifier;
-      this.onChange(old, windowIdentifier);
+    if (this.isWindowChange(windowIdentifier)) {
+      this.notifyWindowChange(windowIdentifier);
     }
-  } catch (error) {
-    throw new WindowDetectionError('Failed to detect active window', error as Error);
   }
-}
+
+  private isWindowChange(newIdentifier: string): boolean {
+    return newIdentifier !== this.currentWindow;
+  }
+
+  private notifyWindowChange(newIdentifier: string): void {
+    const previousWindow = this.currentWindow;
+    this.currentWindow = newIdentifier;
+    this.onChange(previousWindow, newIdentifier);
+  }
 }

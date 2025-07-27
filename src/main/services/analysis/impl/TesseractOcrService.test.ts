@@ -4,6 +4,7 @@ import { ILogger } from "../../../utils/ILogger";
 import { fixtures } from "@fixtures";
 import { OcrInitializationError, OcrProcessingError } from "../../../errors/CustomErrors";
 
+// Test Helpers
 const createMockLogger = (): ILogger => ({
   info: vi.fn(),
   warn: vi.fn(),
@@ -11,13 +12,34 @@ const createMockLogger = (): ILogger => ({
   debug: vi.fn(),
 });
 
+const createOcrService = (logger?: ILogger): TesseractOcrService => {
+  return new TesseractOcrService(logger || createMockLogger());
+};
+
+// Helper for future use if needed
+// const createInitializedOcrService = async (logger?: ILogger): Promise<TesseractOcrService> => {
+//   const service = createOcrService(logger);
+//   await service.init();
+//   return service;
+// };
+
+const expectInitializationLogs = (mockLogger: ILogger): void => {
+  expect(mockLogger.debug).toHaveBeenCalledWith('TesseractOcrService: Initializing worker...');
+  expect(mockLogger.debug).toHaveBeenCalledWith('TesseractOcrService: Worker initialized.');
+};
+
+const expectDisposalLogs = (mockLogger: ILogger): void => {
+  expect(mockLogger.info).toHaveBeenCalledWith('TesseractOcrService: Terminating worker...');
+  expect(mockLogger.info).toHaveBeenCalledWith('TesseractOcrService: Worker terminated.');
+};
+
 describe("TesseractOcrService", () => {
   let mockLogger: ILogger;
   let ocrService: TesseractOcrService;
 
   beforeEach(() => {
     mockLogger = createMockLogger();
-    ocrService = new TesseractOcrService(mockLogger);
+    ocrService = createOcrService(mockLogger);
   });
 
   afterEach(async () => {
@@ -30,8 +52,7 @@ describe("TesseractOcrService", () => {
     it("should initialize worker successfully", async () => {
       await ocrService.init();
       
-      expect(mockLogger.debug).toHaveBeenCalledWith('TesseractOcrService: Initializing worker...');
-      expect(mockLogger.debug).toHaveBeenCalledWith('TesseractOcrService: Worker initialized.');
+      expectInitializationLogs(mockLogger);
     });
 
     it("should not reinitialize if worker already exists", async () => {
@@ -58,7 +79,7 @@ describe("TesseractOcrService", () => {
     });
 
     it("should throw OcrInitializationError when worker not initialized", async () => {
-      const uninitializedService = new TesseractOcrService(mockLogger);
+      const uninitializedService = createOcrService(mockLogger);
       const buffer = Buffer.from('test');
       
       await expect(uninitializedService.getTextFromImage(buffer))
@@ -114,8 +135,7 @@ describe("TesseractOcrService", () => {
       
       await ocrService.dispose();
       
-      expect(mockLogger.info).toHaveBeenCalledWith('TesseractOcrService: Terminating worker...');
-      expect(mockLogger.info).toHaveBeenCalledWith('TesseractOcrService: Worker terminated.');
+      expectDisposalLogs(mockLogger);
     });
 
     it("should handle disposal when no worker exists", async () => {

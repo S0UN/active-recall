@@ -5,6 +5,7 @@ import { IOcrService } from "../../analysis/IOcrService";
 import { ILogger } from "../../../utils/ILogger";
 import { VisionServiceError, ScreenCaptureError, OcrProcessingError } from "../../../errors/CustomErrors";
 
+// Test Helpers
 const createMockLogger = (): ILogger => ({
   info: vi.fn(),
   warn: vi.fn(),
@@ -20,8 +21,20 @@ const createMockOcrService = (): IOcrService => ({
   init: vi.fn(),
   getTextFromImage: vi.fn(),
   dispose: vi.fn(),
-  cleanText: vi.fn(),
 });
+
+const setupSuccessfulCapture = (mockScreenCapture: IScreenCaptureService, mockOcr: IOcrService, imageBuffer: Buffer, text: string): void => {
+  vi.mocked(mockScreenCapture.captureScreen).mockResolvedValue(imageBuffer);
+  vi.mocked(mockOcr.init).mockResolvedValue();
+  vi.mocked(mockOcr.getTextFromImage).mockResolvedValue(text);
+};
+
+const expectSuccessfulVisionFlow = (mockScreenCapture: IScreenCaptureService, mockOcr: IOcrService, mockLogger: ILogger, imageBuffer: Buffer): void => {
+  expect(mockLogger.info).toHaveBeenCalledWith('Capturing screen...');
+  expect(mockScreenCapture.captureScreen).toHaveBeenCalledOnce();
+  expect(mockOcr.init).toHaveBeenCalledOnce();
+  expect(mockOcr.getTextFromImage).toHaveBeenCalledWith(imageBuffer);
+};
 
 describe("VisionService", () => {
   let mockLogger: ILogger;
@@ -41,25 +54,18 @@ describe("VisionService", () => {
       const mockImageBuffer = Buffer.from("fake-image-data");
       const expectedText = "Recognized text from image";
       
-      vi.mocked(mockScreenCaptureService.captureScreen).mockResolvedValue(mockImageBuffer);
-      vi.mocked(mockOcrService.init).mockResolvedValue();
-      vi.mocked(mockOcrService.getTextFromImage).mockResolvedValue(expectedText);
+      setupSuccessfulCapture(mockScreenCaptureService, mockOcrService, mockImageBuffer, expectedText);
 
       const result = await visionService.captureAndRecognizeText();
 
       expect(result).toBe(expectedText);
-      expect(mockLogger.info).toHaveBeenCalledWith('Capturing screen...');
-      expect(mockScreenCaptureService.captureScreen).toHaveBeenCalledOnce();
-      expect(mockOcrService.init).toHaveBeenCalledOnce();
-      expect(mockOcrService.getTextFromImage).toHaveBeenCalledWith(mockImageBuffer);
+      expectSuccessfulVisionFlow(mockScreenCaptureService, mockOcrService, mockLogger, mockImageBuffer);
     });
 
     it("should return empty string when OCR returns null", async () => {
       const mockImageBuffer = Buffer.from("fake-image-data");
       
-      vi.mocked(mockScreenCaptureService.captureScreen).mockResolvedValue(mockImageBuffer);
-      vi.mocked(mockOcrService.init).mockResolvedValue();
-      vi.mocked(mockOcrService.getTextFromImage).mockResolvedValue("");
+      setupSuccessfulCapture(mockScreenCaptureService, mockOcrService, mockImageBuffer, "");
 
       const result = await visionService.captureAndRecognizeText();
 
