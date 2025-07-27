@@ -11,6 +11,7 @@ export class BasePoller implements IPoller {
 
 
   start(): void {
+    console.log(`[BasePoller] Starting ${this.name} with interval ${this.configInterval}ms`);
     this.polling.register(this.name, this.configInterval, this.onTick.bind(this));
   }
   stop(): void {

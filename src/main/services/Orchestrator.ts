@@ -92,7 +92,6 @@ export class Orchestrator {
     this.state.onExit();
   }
 
-  //@LogExecution()
   private transitionStateOnWindowChange(newWindow: string) {
     // nothing is in the cache yet, assume it is studying to classify once and if it is idle, the classification will handle it
     if (!this.cache.has(newWindow)) {
@@ -124,8 +123,6 @@ export class Orchestrator {
     this.state.onEnter();
   }
 
-
-  //@LogExecution()
   async runFullPipeline(newWindow: string) {
     if (!newWindow) {
       throw new Error('Window identifier is required');
@@ -257,7 +254,17 @@ export class Orchestrator {
       this.updateOldWindowDate(oldKey);
     }
     this.currentWindow = newKey;
-    this.transitionStateOnWindowChange(newKey);
+    
+    // For new windows, set initial state and run immediate classification
+    if (!this.cache.has(newKey)) {
+      this.cache.set(newKey, {
+        mode: "Studying",
+        lastClassified: Date.now(),
+      });
+      await this.runFullPipeline(newKey);
+    } else {
+      this.transitionStateOnWindowChange(newKey);
+    }
   }
 
   public startWindowPolling(): void {
