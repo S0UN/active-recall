@@ -21,4 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added fallback logic to use first available screen source when primary display match fails
 - Improved error messages to include list of available screen sources for easier debugging
 - Fixed DistilBARTService initialization error by adding proper service initialization in Orchestrator startup sequence
+
+### Changed
+- Improved classification accuracy by using broader, more descriptive labels for zero-shot classification
+- Added hypothesis template for better zero-shot classification performance
+- Added text preprocessing to clean OCR output and remove UI artifacts before classification
+- Enhanced logging to show which label scored highest during classification
+
+### Development Session Summary
+- Identified classification accuracy issues with current zero-shot approach
+- Researched and planned implementation of advanced NLI-based classification pipeline
+- Explored dependency inversion patterns (later rolled back in favor of proper IClassificationService implementations)
+- Documented comprehensive improvement strategy for arbitrary category classification
 ### Security

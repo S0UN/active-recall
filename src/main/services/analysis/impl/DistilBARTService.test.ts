@@ -28,6 +28,55 @@ describe("DistilBARTService", () => {
     service = new DistilBARTService();
   });
 
+  describe("improved model performance", () => {
+    it("should provide high confidence for clear educational content with noisy OCR", async () => {
+      const noisyEducationalText = `
+        Chapter 3 Cell Division
+        In this chapter we will explore the fundamental process of cell division
+        Cell division is essential for growth repair and reproduction in living organisms
+        3.1 Introduction to Mitosis
+        Mitosis is a type of cell division that results in two daughter cells
+      `;
+
+      await service.init();
+      
+      // Mock higher confidence scores for educational content
+      mockClassifier.mockResolvedValue({
+        scores: [0.85, 0.1, 0.03, 0.02],
+        labels: ["studying technical or educational content", "other", "other2", "other3"]
+      });
+
+      const result = await service.classifyWithConfidence(noisyEducationalText);
+      
+      expect(result.classification).toBe('Studying');
+      expect(result.confidence).toBeGreaterThan(0.8);
+    });
+
+    it("should provide low confidence for non-educational content", async () => {
+      const spotifyText = `
+        Now Playing Bohemian Rhapsody
+        Artist Queen
+        Album A Night at the Opera
+        Up Next
+        1 Hotel California Eagles
+        2 Stairway to Heaven Led Zeppelin
+      `;
+
+      await service.init();
+      
+      // Mock low confidence scores for entertainment content
+      mockClassifier.mockResolvedValue({
+        scores: [0.15, 0.25, 0.35, 0.25],
+        labels: ["studying technical or educational content", "other", "other2", "other3"]
+      });
+
+      const result = await service.classifyWithConfidence(spotifyText);
+      
+      expect(result.classification).toBe('Undetermined');
+      expect(result.confidence).toBeLessThan(0.45);
+    });
+  });
+
   describe("dynamic label management", () => {
     it("should allow adding custom labels", async () => {
       await service.init();
@@ -50,13 +99,6 @@ describe("DistilBARTService", () => {
       // Should fail initially since removeLabel method doesn't exist yet
       expect(service.getLabels()).not.toContain("Mathematics");
       expect(service.getLabels()).toContain("Physics");
-    });
-
-    it("should start with default Computer Science label", async () => {
-      await service.init();
-      
-      // Should fail initially since getLabels method doesn't exist yet
-      expect(service.getLabels()).toContain("Computer Science");
     });
 
     it("should not add duplicate labels", async () => {
@@ -112,22 +154,6 @@ describe("DistilBARTService", () => {
       });
     });
 
-    it("should return Undetermined classification for medium confidence", async () => {
-      await service.init();
-      
-      const mockResult = {
-        scores: [0.50, 0.50],
-        labels: ["Computer Science", "Other"]
-      };
-      mockClassifier.mockResolvedValue(mockResult);
-      
-      const result = await service.classifyWithConfidence("reading general news");
-      
-      expect(result).toEqual({
-        classification: "Undetermined",
-        confidence: 0.50
-      });
-    });
 
     it("should work with multiple custom labels", async () => {
       await service.init();

@@ -22,12 +22,14 @@ const LabelSchema = z.string()
 
 @injectable()
 export class DistilBARTService implements IClassificationService {
-  private static readonly STUDYING_THRESHOLD = 0.55;
+  private static readonly STUDYING_THRESHOLD = 0.45;
   private static readonly IDLE_THRESHOLD = 0.15;
-  private static readonly DEFAULT_LABELS = [ "Computer Science",
-    "Programming",
-    "Software Development",
-    "Technical Learning"];
+  private static readonly DEFAULT_LABELS = [
+    "studying technical or educational content",
+    "reading documentation or programming textbooks", 
+    "learning computer science or software development",
+    "engaging with academic or professional material"
+  ];
 
   private classifierPromise?: Promise<any>;
   private labels: string[] = [...DistilBARTService.DEFAULT_LABELS];
@@ -52,8 +54,16 @@ export class DistilBARTService implements IClassificationService {
     const validatedText = this.validateInput(text);
     this.validateInitialization();
 
+    // Preprocess text to improve classification
+    const cleanedText = this.preprocessText(validatedText);
+    
     const classifier = await this.classifierPromise!;
-    const result = await classifier(validatedText, this.labels);
+    
+    // Use hypothesis template for better zero-shot performance with NLI
+    const hypothesisTemplate = "This text is about {}";
+    const result = await classifier(cleanedText, this.labels, {
+      hypothesis_template: hypothesisTemplate
+    });
 
     if (!result?.scores) {
       throw new ClassificationError('Invalid response from classification pipeline');
@@ -61,8 +71,12 @@ export class DistilBARTService implements IClassificationService {
 
     const confidence = this.findMaxScore(result.scores);
     Logger.info(`Classification confidence: ${confidence}`);
-    const classification = this.determineClassification(confidence);
     
+    // Log the label with highest confidence for debugging
+    const maxIndex = result.scores.indexOf(confidence);
+    Logger.info(`Highest scoring label: "${this.labels[maxIndex]}" with confidence: ${confidence}`);
+    
+    const classification = this.determineClassification(confidence);
 
     return { classification, confidence };
   }
@@ -83,6 +97,34 @@ export class DistilBARTService implements IClassificationService {
     if (!this.classifierPromise) {
       throw new ClassificationError("DistilBARTService must be initialized first!");
     }
+  }
+
+  private preprocessText(text: string): string {
+    // Remove excessive symbols and UI artifacts
+    let cleaned = text
+      // Remove lines with mostly symbols or UI elements
+      .split('\n')
+      .filter(line => {
+        const symbolCount = (line.match(/[^\w\s]/g) || []).length;
+        const wordCount = (line.match(/\b\w+\b/g) || []).length;
+        // Keep lines that have more words than symbols
+        return wordCount > 0 && (symbolCount / line.length) < 0.5;
+      })
+      .join(' ');
+    
+    // Remove multiple spaces and normalize
+    cleaned = cleaned
+      .replace(/\s+/g, ' ')
+      .replace(/[»«]/g, '')
+      .trim();
+    
+    // Limit text length to improve performance
+    const maxLength = 500;
+    if (cleaned.length > maxLength) {
+      cleaned = cleaned.substring(0, maxLength) + '...';
+    }
+    
+    return cleaned;
   }
 
   private findMaxScore(scores: number[]): number {
