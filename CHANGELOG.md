@@ -13,24 +13,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Text Preprocessing Service**: Implemented comprehensive text preprocessing with Python SymSpell integration
+  - Created ITextPreprocessor interface with dependency injection support
+  - Added spell checking with automatic dictionary download
+  - OCR output cleaning (UI artifacts, navigation elements, file paths)
+  - Real-time spell correction for improved classification accuracy
+- **Enhanced Testing**: Added integration and E2E tests for complete preprocessing pipeline
+- **Build Process**: Updated to automatically copy Python files to dist/ directory
+- **Virtual Environment**: Set up Python environment with requirements.txt for spell checking dependencies
+
 ### Changed
-### Deprecated
+- **Clean Code Refactoring**: Massive codebase cleanup following CLAUDE.md principles
+  - Replaced console.log with proper logging throughout codebase
+  - Extracted complex methods into smaller, focused functions (ElectronCaptureService)
+  - Removed unnecessary comments in favor of self-documenting code
+  - Improved method names (performIdleRevalidation, handleWindowChange, processCurrentWindow)
+  - Better abstraction levels in Orchestrator class
+- **Fail-Fast Architecture**: Removed ALL fallback logic per clean coding principles
+  - No graceful degradation - system fails properly when components fail
+  - Eliminated fallback handling in DistilBARTService and TextPreprocessor
+- **Dependency Injection**: Integrated TextPreprocessor into DistilBARTService via constructor injection
+- **Error Handling**: Updated integration tests to expect failures instead of graceful handling
+
 ### Removed
+- All fallback logic across the entire codebase
+- CI/CD workflows (moved to .github_disabled/)
+- Large comment blocks and inline documentation
+- Old DistilBARTService.real.test.ts file
+
 ### Fixed
-- Fixed screen capture error on macOS by updating source matching logic to handle platform-specific screen naming conventions ("Entire screen" on macOS vs "Screen 1" on other platforms)
-- Added fallback logic to use first available screen source when primary display match fails
-- Improved error messages to include list of available screen sources for easier debugging
-- Fixed DistilBARTService initialization error by adding proper service initialization in Orchestrator startup sequence
-
-### Changed
-- Improved classification accuracy by using broader, more descriptive labels for zero-shot classification
-- Added hypothesis template for better zero-shot classification performance
-- Added text preprocessing to clean OCR output and remove UI artifacts before classification
-- Enhanced logging to show which label scored highest during classification
-
-### Development Session Summary
-- Identified classification accuracy issues with current zero-shot approach
-- Researched and planned implementation of advanced NLI-based classification pipeline
-- Explored dependency inversion patterns (later rolled back in favor of proper IClassificationService implementations)
-- Documented comprehensive improvement strategy for arbitrary category classification
+- State classes (IdleState, StudyingState) updated to use new method names
+- Test suite updated for renamed methods (performIdleRevalidation, handleWindowChange)
+- Method signature consistency across state pattern implementation
 ### Security
