@@ -20,6 +20,9 @@ import { TesseractOcrService } from './services/analysis/impl/TesseractOcrServic
 import { IClassificationService } from './services/analysis/IClassificationService';
 import { DistilBARTService } from './services/analysis/impl/DistilBARTService';
 
+import { ITextPreprocessor } from './services/preprocessing/ITextPreprocessor';
+import { TextPreprocessor } from './services/preprocessing/impl/TextPreprocessor';
+
 import { IScreenCaptureService } from './services/capture/IScreenCaptureService';
 import { ElectronCaptureService } from './services/capture/impl/ElectronCaptureService';
 
@@ -50,6 +53,7 @@ container.registerSingleton<
 // 4) Low-level services
 container.registerSingleton<IPollingSystem>('PollingSystem', PollingSystem);
 container.registerSingleton<IOcrService>('OcrService', TesseractOcrService);
+container.registerSingleton<ITextPreprocessor>('TextPreprocessor', TextPreprocessor);
 container.registerSingleton<IClassificationService>(
   'ClassificationService',
   DistilBARTService

@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "dist/main/main.js",
   "scripts": {
-    "start": "tsc && electron .",
-    "build": "tsc",
+    "start": "npm run build && electron .",
+    "build": "tsc && mkdir -p dist/main/services/preprocessing/impl && cp src/main/services/preprocessing/impl/spellcheck.py dist/main/services/preprocessing/impl/ && cp src/main/services/preprocessing/impl/frequency_dictionary_en_82_765.txt dist/main/services/preprocessing/impl/",
     "test": "vitest"
   },
   "keywords": [],

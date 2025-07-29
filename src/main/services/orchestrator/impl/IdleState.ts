@@ -3,19 +3,17 @@ import { Orchestrator } from '../../Orchestrator';
 export class IdleState implements IOrchestratorState {
   constructor(private readonly orchestrator: Orchestrator) {}
   onEnter() {
-    this.orchestrator.logger.info('Entering Idle State');
     this.orchestrator.startWindowPolling();
     this.orchestrator.startIdleRevalidationPolling();
   }
   onWindowChange(oldWindow: string, newWindow: string) {
-    this.orchestrator.onCommonWindowChange(oldWindow, newWindow);
+    this.orchestrator.handleWindowChange(oldWindow, newWindow);
   }
 
   onTick() { 
-    this.orchestrator.IdleRevalidation();
+    //this.orchestrator.performIdleRevalidation();
    }
   onExit() {
-     this.orchestrator.logger.info('Exiting Idle State');
      this.orchestrator.stopIdleRevalidationPolling();
   }
 }

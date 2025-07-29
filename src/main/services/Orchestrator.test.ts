@@ -213,7 +213,7 @@ describe("Orchestrator", () => {
     it("should warn when no current window available", () => {
       orchestrator.currentWindow = "";
 
-      orchestrator.IdleRevalidation();
+      orchestrator.performIdleRevalidation();
 
       expect(mockLogger.warn).toHaveBeenCalledWith('No current window available for idle revalidation');
     });
@@ -222,7 +222,7 @@ describe("Orchestrator", () => {
       vi.mocked(mockCache.get).mockReturnValue(undefined);
       const runFullPipelineSpy = vi.spyOn(orchestrator, 'runFullPipeline').mockResolvedValue();
 
-      orchestrator.IdleRevalidation();
+      orchestrator.performIdleRevalidation();
 
       expect(runFullPipelineSpy).toHaveBeenCalledWith("test-window");
     });
@@ -233,7 +233,7 @@ describe("Orchestrator", () => {
       vi.mocked(mockCache.get).mockReturnValue(cacheEntry);
       const runFullPipelineSpy = vi.spyOn(orchestrator, 'runFullPipeline').mockResolvedValue();
 
-      orchestrator.IdleRevalidation();
+      orchestrator.performIdleRevalidation();
 
       expect(runFullPipelineSpy).toHaveBeenCalledWith("test-window");
     });
@@ -244,7 +244,7 @@ describe("Orchestrator", () => {
       vi.mocked(mockCache.get).mockReturnValue(cacheEntry);
       const runFullPipelineSpy = vi.spyOn(orchestrator, 'runFullPipeline');
 
-      orchestrator.IdleRevalidation();
+      orchestrator.performIdleRevalidation();
 
       expect(runFullPipelineSpy).not.toHaveBeenCalled();
       expect(mockLogger.info).toHaveBeenCalledWith(
@@ -290,7 +290,7 @@ describe("Orchestrator", () => {
     });
   });
 
-  describe("onCommonWindowChange", () => {
+  describe("handleWindowChange", () => {
     it("should update old window and transition state", async () => {
       const oldWindow = "old-window";
       const newWindow = "new-window";
@@ -304,7 +304,7 @@ describe("Orchestrator", () => {
       
       const updateSpy = vi.spyOn(orchestrator, 'updateOldWindowDate');
 
-      await orchestrator.onCommonWindowChange(oldWindow, newWindow);
+      await orchestrator.handleWindowChange(oldWindow, newWindow);
 
       expect(updateSpy).toHaveBeenCalledWith(oldWindow);
     });
@@ -321,7 +321,7 @@ describe("Orchestrator", () => {
       
       const updateSpy = vi.spyOn(orchestrator, 'updateOldWindowDate');
 
-      await orchestrator.onCommonWindowChange("", newWindow);
+      await orchestrator.handleWindowChange("", newWindow);
 
       expect(updateSpy).not.toHaveBeenCalled();
     });

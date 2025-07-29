@@ -14,20 +14,6 @@ import { ILogger } from "../utils/ILogger";
 import { VisionServiceError, ClassificationError, CacheError } from "../errors/CustomErrors";
 import { ErrorHandler } from "../utils/ErrorHandler";
 
-// MUST UNDERSTAND TWO THINGS, WHY DO I NEED TO DO :
-/*
-this.pollingSystem.register(this.name, this.intervalMs, () =>
-Promise.resolve(callback()).catch(err => this.logger.error(err))
-);
-
-AND WHY DO I NEED TO DO THIS TO SET PROPERLY:
-
-  
-  public setOnTick(cb: () => void): void {
-    this.onTickCallback = cb;
-  }
-*/
-
 @injectable()
 export class Orchestrator {
   private state: IOrchestratorState;
@@ -67,25 +53,28 @@ export class Orchestrator {
     @inject("PollingConfig")
     private readonly config: ConfigService
   ) {
-    // state setup
     this.idleState = new IdleState(this);
     this.studyingState = new StudyingState(this);
     this.state = this.idleState;
     this.errorHandler = new ErrorHandler(this.logger);
     this.cache.startTTL();
-    this.idleRevalPoller.setOnTick(() => this.IdleRevalidation());
-    this.windowPoller.setOnChange(
-      (oldWindow: string, newWindow: string) => {
-        this.onCommonWindowChange(oldWindow, newWindow);
-      }
-    );
-    this.studyingOcrPoller.setOnTick(() => {
-      if (!this.currentWindow) {
-        this.logger.warn('No current window available for OCR polling');
-        return;
-      }
-      this.runFullPipeline(this.currentWindow);
+    this.setupPollingCallbacks();
+  }
+
+  private setupPollingCallbacks(): void {
+    this.idleRevalPoller.setOnTick(() => this.performIdleRevalidation());
+    this.windowPoller.setOnChange((oldWindow: string, newWindow: string) => {
+      this.handleWindowChange(oldWindow, newWindow);
     });
+    this.studyingOcrPoller.setOnTick(() => this.processCurrentWindow());
+  }
+
+  private processCurrentWindow(): void {
+    if (!this.currentWindow) {
+      this.logger.warn('No current window available for OCR polling');
+      return;
+    }
+    this.runFullPipeline(this.currentWindow);
   }
 
   async start() {
@@ -104,13 +93,7 @@ export class Orchestrator {
   }
 
   private transitionStateOnWindowChange(newWindow: string) {
-    // nothing is in the cache yet, assume it is studying to classify once and if it is idle, the classification will handle it
-    if (!this.cache.has(newWindow)) {
-      this.cache.set(newWindow, {
-        mode: "Studying",
-        lastClassified: Date.now(),
-      });
-    }
+
     const entry = this.cache.get(newWindow);
     if (!entry) {
       throw new CacheError(`Cache entry not found for window: ${newWindow}`);
@@ -132,6 +115,7 @@ export class Orchestrator {
     this.state.onExit();
     this.state = desiredState;
     this.state.onEnter();
+    this.logger.info(`State changed to: ${this.state.constructor.name}`);
   }
 
   async runFullPipeline(newWindow: string) {
@@ -145,7 +129,6 @@ export class Orchestrator {
       const currentMode = this.getCurrentWindowMode(newWindow);
       
       const { text, classificationResult } = await this.captureAndClassifyWindow();
-      this.logger.info(`Captured text: ${text}`);
       this.logger.info(`Classification result: ${classificationResult}`);
       this.handleModeTransition(newWindow, currentMode, classificationResult);
       await this.processStudyingContent(classificationResult, text);
@@ -201,7 +184,7 @@ export class Orchestrator {
     }
   }
 
-  IdleRevalidation() {
+  performIdleRevalidation() {
     if (!this.hasCurrentWindow()) {
       this.logger.warn('No current window available for idle revalidation');
       return;
@@ -225,7 +208,7 @@ export class Orchestrator {
 
   private isIdleWindowStale(state: { mode: string; lastClassified: number }): boolean {
     const timeSinceLastClassification = Date.now() - state.lastClassified;
-    return timeSinceLastClassification > this.config.idleRevalidationIntervalMs && state.mode === "Idle";
+    return timeSinceLastClassification > this.config.idleRevalidationThresholdMs && state.mode === "Idle";
   }
 
   private logWindowStillActive(windowId: string): void {
@@ -262,8 +245,9 @@ export class Orchestrator {
     this.logger.warn(`No entry found for window: ${windowId}`);
   }
 
-  async onCommonWindowChange(oldKey: string, newKey: string) {
+  async handleWindowChange(oldKey: string, newKey: string) {
     try {
+     
       if (oldKey) {
         this.updateOldWindowDate(oldKey);
       }
@@ -271,10 +255,7 @@ export class Orchestrator {
       
       // For new windows, set initial state and run immediate classification
       if (!this.cache.has(newKey)) {
-        this.cache.set(newKey, {
-          mode: "Studying",
-          lastClassified: Date.now(),
-        });
+        this.updateCacheAndTransition(newKey, "Studying", this.studyingState);
         await this.runFullPipeline(newKey);
       } else {
         this.transitionStateOnWindowChange(newKey);

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DistilBARTService } from "./DistilBARTService";
 import { ClassificationError } from "../../../errors/CustomErrors";
+import { ITextPreprocessor } from "../../preprocessing/ITextPreprocessor";
 
 // Mock the transformers pipeline and environment
 vi.mock('@xenova/transformers', () => ({
@@ -17,6 +18,7 @@ const createMockClassifier = () => vi.fn();
 describe("DistilBARTService", () => {
   let service: DistilBARTService;
   let mockClassifier: any;
+  let mockPreprocessor: ITextPreprocessor;
 
   beforeEach(async () => {
     mockClassifier = createMockClassifier();
@@ -25,7 +27,12 @@ describe("DistilBARTService", () => {
     const { pipeline } = await import('@xenova/transformers');
     vi.mocked(pipeline).mockResolvedValue(mockClassifier);
     
-    service = new DistilBARTService();
+    // Create mock preprocessor
+    mockPreprocessor = {
+      preprocess: vi.fn().mockImplementation(async (text: string) => text.trim())
+    };
+    
+    service = new DistilBARTService(mockPreprocessor);
   });
 
   describe("improved model performance", () => {

@@ -12,10 +12,7 @@
   - Filter out navigation, menus, status bars
   - Extract only meaningful content
   
-- [ ] **Chunk into bites (sentences or short paragraphs)**
-  - Split text into logical chunks
-  - Process each chunk separately for better accuracy
-  
+
 *This ensures whatever comes into your classifier is as clean as possible.*
 
 ### 2. Zero-Shot Classification via NLI

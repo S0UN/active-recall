@@ -1,11 +1,11 @@
-import { injectable } from 'tsyringe';
+import { injectable, inject } from 'tsyringe';
 import { IClassificationService, ClassificationResult } from '../IClassificationService';
 import { pipeline, env } from '@xenova/transformers';
 import { ClassificationError } from '../../../errors/CustomErrors';
 import { z } from 'zod';
 import Logger from 'electron-log';
+import { ITextPreprocessor } from '../../preprocessing/ITextPreprocessor';
 
-// Zod Schemas - Define first, derive types
 const ClassificationTextSchema = z.string()
   .min(1, "Text is required for classification")
   .refine(str => str.trim().length > 0, {
@@ -23,7 +23,6 @@ const LabelSchema = z.string()
 @injectable()
 export class DistilBARTService implements IClassificationService {
   private static readonly STUDYING_THRESHOLD = 0.45;
-  private static readonly IDLE_THRESHOLD = 0.15;
   private static readonly DEFAULT_LABELS = [
     "studying technical or educational content",
     "reading documentation or programming textbooks", 
@@ -34,15 +33,11 @@ export class DistilBARTService implements IClassificationService {
   private classifierPromise?: Promise<any>;
   private labels: string[] = [...DistilBARTService.DEFAULT_LABELS];
 
+  constructor(@inject('TextPreprocessor') private readonly textPreprocessor: ITextPreprocessor) {}
+
   public async init(): Promise<void> {
-    // Configure Transformers.js for offline models
-    env.allowRemoteModels = false;
-    env.localModelPath = './models/';
-    
-    this.classifierPromise = pipeline(
-      'zero-shot-classification',
-      'distilbert-mnli'
-    );
+    this.configureOfflineMode();
+    this.classifierPromise = pipeline('zero-shot-classification', 'distilbert-mnli');
   }
 
   public async classify(text: string): Promise<string> {
@@ -54,30 +49,15 @@ export class DistilBARTService implements IClassificationService {
     const validatedText = this.validateInput(text);
     this.validateInitialization();
 
-    // Preprocess text to improve classification
-    const cleanedText = this.preprocessText(validatedText);
-    
+    const cleanedText = await this.prepareTextForClassification(validatedText);
     const classifier = await this.classifierPromise!;
     
-    // Use hypothesis template for better zero-shot performance with NLI
-    const hypothesisTemplate = "This text is about {}";
-    const result = await classifier(cleanedText, this.labels, {
-      hypothesis_template: hypothesisTemplate
-    });
-
-    if (!result?.scores) {
-      throw new ClassificationError('Invalid response from classification pipeline');
-    }
-
+    const result = await this.performZeroShotClassification(classifier, cleanedText);
     const confidence = this.findMaxScore(result.scores);
-    Logger.info(`Classification confidence: ${confidence}`);
     
-    // Log the label with highest confidence for debugging
-    const maxIndex = result.scores.indexOf(confidence);
-    Logger.info(`Highest scoring label: "${this.labels[maxIndex]}" with confidence: ${confidence}`);
+    this.logClassificationResults(confidence, result);
     
     const classification = this.determineClassification(confidence);
-
     return { classification, confidence };
   }
 
@@ -99,32 +79,37 @@ export class DistilBARTService implements IClassificationService {
     }
   }
 
-  private preprocessText(text: string): string {
-    // Remove excessive symbols and UI artifacts
-    let cleaned = text
-      // Remove lines with mostly symbols or UI elements
-      .split('\n')
-      .filter(line => {
-        const symbolCount = (line.match(/[^\w\s]/g) || []).length;
-        const wordCount = (line.match(/\b\w+\b/g) || []).length;
-        // Keep lines that have more words than symbols
-        return wordCount > 0 && (symbolCount / line.length) < 0.5;
-      })
-      .join(' ');
-    
-    // Remove multiple spaces and normalize
-    cleaned = cleaned
-      .replace(/\s+/g, ' ')
-      .replace(/[»«]/g, '')
-      .trim();
-    
-    // Limit text length to improve performance
-    const maxLength = 500;
-    if (cleaned.length > maxLength) {
-      cleaned = cleaned.substring(0, maxLength) + '...';
+  private async prepareTextForClassification(text: string): Promise<string> {
+    const preprocessed = await this.textPreprocessor.preprocess(text);
+    if (!preprocessed.trim()) {
+      throw new ClassificationError("Preprocessed text is empty");
     }
+    return preprocessed;
+  }
+
+  private configureOfflineMode(): void {
+    env.allowRemoteModels = false;
+    env.localModelPath = './models/';
+  }
+
+  private async performZeroShotClassification(classifier: any, text: string): Promise<any> {
+    const hypothesisTemplate = "This text is about {}";
+    const result = await classifier(text, this.labels, {
+      hypothesis_template: hypothesisTemplate
+    });
+
+    if (!result?.scores) {
+      throw new ClassificationError('Invalid response from classification pipeline');
+    }
+
+    return result;
+  }
+
+  private logClassificationResults(confidence: number, result: any): void {
+    Logger.info(`Classification confidence: ${confidence}`);
     
-    return cleaned;
+    const maxIndex = result.scores.indexOf(confidence);
+    Logger.info(`Highest scoring label: "${this.labels[maxIndex]}" with confidence: ${confidence}`);
   }
 
   private findMaxScore(scores: number[]): number {
@@ -134,10 +119,8 @@ export class DistilBARTService implements IClassificationService {
   private determineClassification(confidence: number): string {
     if (confidence >= DistilBARTService.STUDYING_THRESHOLD) {
       return "Studying";
-    } else if (confidence <= DistilBARTService.IDLE_THRESHOLD) {
-      return "Idle";
     } else {
-      return "Undetermined";
+      return "Idle";
     }
   }
 
@@ -150,10 +133,15 @@ export class DistilBARTService implements IClassificationService {
 
   public removeLabel(label: unknown): void {
     const validatedLabel = this.validateLabel(label);
-    const index = this.labels.indexOf(validatedLabel);
-    if (index > -1) {
-      this.labels.splice(index, 1);
-    }
+    this.labels = this.labels.filter(l => l !== validatedLabel);
+  }
+
+  public clearLabels(): void {
+    this.labels = [...DistilBARTService.DEFAULT_LABELS];
+  }
+
+  public getLabels(): string[] {
+    return [...this.labels];
   }
 
   private validateLabel(label: unknown): string {
@@ -162,15 +150,9 @@ export class DistilBARTService implements IClassificationService {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const firstError = error.issues[0];
-        throw new ClassificationError(firstError?.message || "Invalid label input");
+        throw new ClassificationError(firstError?.message || "Invalid label");
       }
-      throw new ClassificationError("Invalid label input");
+      throw new ClassificationError("Invalid label");
     }
   }
-
-  public getLabels(): string[] {
-    return [...this.labels];
-  }
 }
-
-

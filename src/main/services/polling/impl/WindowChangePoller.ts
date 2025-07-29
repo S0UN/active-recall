@@ -17,16 +17,11 @@ export class WindowChangePoller extends BasePoller implements IPoller {
     @inject("PollingSystem") polling: IPollingSystem,
     @inject("PollingConfig") configInterval: ConfigService
   ) {
-    // pass only your polling and interval to the base
     super(polling, configInterval.windowChangeIntervalMs, "WindowChange", () =>
       this.poll()
     );
   }
 
-  /**
-   * Call this from your Orchestrator (or WindowManager)
-   * to wire up the real callback before you call start().
-   */
   public setOnChange(cb: (old: string, next: string) => void): void {
     this.onChange = cb;
   }
