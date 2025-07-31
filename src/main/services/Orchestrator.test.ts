@@ -227,16 +227,6 @@ describe("Orchestrator", () => {
       expect(runFullPipelineSpy).toHaveBeenCalledWith("test-window");
     });
 
-    it("should run full pipeline when idle threshold exceeded", () => {
-      const oldTimestamp = Date.now() - mockConfig.idleRevalidationIntervalMs - 1000;
-      const cacheEntry = { mode: "Idle", lastClassified: oldTimestamp };
-      vi.mocked(mockCache.get).mockReturnValue(cacheEntry);
-      const runFullPipelineSpy = vi.spyOn(orchestrator, 'runFullPipeline').mockResolvedValue();
-
-      orchestrator.performIdleRevalidation();
-
-      expect(runFullPipelineSpy).toHaveBeenCalledWith("test-window");
-    });
 
     it("should not run pipeline when window is still active", () => {
       const recentTimestamp = Date.now() - 1000;

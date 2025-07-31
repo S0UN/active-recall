@@ -18,7 +18,9 @@ import { IOcrService } from './services/analysis/IOcrService';
 import { TesseractOcrService } from './services/analysis/impl/TesseractOcrService';
 
 import { IClassificationService } from './services/analysis/IClassificationService';
-import { DistilBARTService } from './services/analysis/impl/DistilBARTService';
+import { IModelFactory } from './services/analysis/IModelFactory';
+import { ModelFactory } from './services/analysis/impl/ModelFactory';
+import { DEFAULT_CLASSIFICATION_CONFIG, SupportedModel } from './services/analysis/IClassificationModelConfig';
 
 import { ITextPreprocessor } from './services/preprocessing/ITextPreprocessor';
 import { TextPreprocessor } from './services/preprocessing/impl/TextPreprocessor';
@@ -57,10 +59,18 @@ container.registerSingleton<IPollingSystem>('PollingSystem', PollingSystem);
 container.registerSingleton<IOcrService>('OcrService', TesseractOcrService);
 container.registerSingleton<ITextPreprocessor>('TextPreprocessor', TextPreprocessor);
 container.registerSingleton<ITextSegmenter>('TextSegmenter', TextSegmenter);
-container.registerSingleton<IClassificationService>(
-  'ClassificationService',
-  DistilBARTService
-);
+container.registerSingleton<IModelFactory>('ModelFactory', ModelFactory);
+
+const activeModel: SupportedModel = 
+  (process.env.CLASSIFICATION_MODEL as SupportedModel) || 
+  DEFAULT_CLASSIFICATION_CONFIG.activeModel;
+
+container.registerSingleton<IClassificationService>('ClassificationService', {
+  useFactory: (container: any) => {
+    const factory = container.resolve('ModelFactory') as IModelFactory;
+    return factory.createClassifier(activeModel);
+  }
+} as any);
 container.registerSingleton<IScreenCaptureService>(
   'ScreenCaptureService',
   ElectronCaptureService

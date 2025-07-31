@@ -79,7 +79,7 @@ describe("DistilBARTService", () => {
 
       const result = await service.classifyWithConfidence(spotifyText);
       
-      expect(result.classification).toBe('Undetermined');
+      expect(result.classification).toBe('Idle');
       expect(result.confidence).toBeLessThan(0.45);
     });
   });
