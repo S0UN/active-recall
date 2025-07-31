@@ -2,24 +2,14 @@
 
 ## High Priority Issues
 
-### 1. Window Cache Issue
-- [ ] **Debug window caching behavior**
-  - Investigate why window states aren't being cached correctly
-  - Check TTL settings and cache expiration logic
-  - Ensure proper window identification across platform switches
-  
-- [ ] **Fix cache key generation**
-  - Standardize window identifier creation
-  - Handle edge cases (empty titles, duplicate names)
-  - Test with various applications (browsers, IDEs, documents)
 
-### 2. Classification Model Improvements  
+### 1. Classification Model Improvements  
 - [ ] **Better Zero-Shot Classification Model**
   - Upgrade from DistilBERT to RoBERTa-large-mnli or DeBERTa-v3-large
   - Implement facebook/bart-large-mnli for improved accuracy
   - Add confidence threshold tuning based on real usage data
 
-### 3. Window Dwell Time Feature
+### 2. Window Dwell Time Feature
 - [ ] **Implement window dwell time tracking**
   - Track how long user spends in each window/application
   - Store timestamps for window enter/exit events
@@ -30,12 +20,12 @@
   - Identify most productive study sessions
   - Export time tracking data for analysis
 
-## Completed ✅
+## Completed 
 
 ### Text Preprocessing (DONE)
-- ✅ **Spell-check via SymSpell** - Implemented with Python integration
-- ✅ **Strip boilerplate UI elements** - Comprehensive text cleaning implemented
-- ✅ **Integration testing** - E2E tests with real preprocessing pipeline
+-  **Spell-check via SymSpell** - Implemented with Python integration
+- **Strip boilerplate UI elements** - Comprehensive text cleaning implemented
+-  **Integration testing** - E2E tests with real preprocessing pipeline
 
 ## Future Enhancements
 
