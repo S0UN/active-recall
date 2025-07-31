@@ -1,29 +1,37 @@
 # MIMIR TODO - Active Recall Study Tracker
 
-## High Priority Issues
+## 🔥 HIGH PRIORITY - Model Discrimination Issues (CRITICAL)
 
+### Model Performance Problems Identified
+Current models (BART, RoBERTa, DeBERTa) show poor discrimination:
+- **BART**: Too conservative (~30% confidence on all content)
+- **DeBERTa**: HIGH false positives (classifies Netflix as studying 75% confidence)  
+- **RoBERTa**: Inconsistent (misses legitimate study content)
+- **Overall accuracy**: ~50% - INSUFFICIENT for production
 
-### 1. Classification Model Improvements  
-- [ ] **Better Zero-Shot Classification Model**
-	- Upgrade from DistilBERT to RoBERTa-large-mnli or DeBERTa-v3-large
-	- Implement facebook/bart-large-mnli for improved accuracy
-	- Add confidence threshold tuning based on real usage data
+### Immediate Next Steps
+- [ ] **Try academic-specialized models (allenai/scibert-scivocab-uncased)**
+  - Minimal code changes - just update MODEL_SPECIFICATIONS config
+  - Download: `git clone https://huggingface.co/Xenova/scibert-scivocab-uncased`
+  - Expected improvement: 70-80% chance of better textbook content detection
+- [ ] **Test SciBERT discrimination on real textbook vs entertainment content**
+- [ ] **If SciBERT fails, try other academic models (BiomedNLP-PubMedBERT, facebook/bart-large-cnn)**
+- [ ] **Implement ensemble voting system if single models insufficient**
 
+### Architecture Integration (MEDIUM PRIORITY)
+- [ ] **Integrate SegmentedClassificationService into Orchestrator pipeline**
+- [ ] **Update VisionService to use new segmented classification**
+- [ ] **Implement dynamic confidence thresholds based on model performance**
 
-## Completed 
+## ✅ COMPLETED 
 
-### Text Preprocessing (DONE)
--  **Spell-check via SymSpell** - Implemented with Python integration
-- **Strip boilerplate UI elements** - Comprehensive text cleaning implemented
--  **Integration testing** - E2E tests with real preprocessing pipeline
-
-## Future Enhancements
-
-### Advanced Classification Pipeline
-- [ ] **Upgrade to RoBERTa/DeBERTa models**
-- [ ] **Implement chunk aggregation strategies**
-- [ ] **Add embedding similarity fallbacks**
-- [ ] **Confidence-driven user confirmation**
+### Multi-Model AI Classification System (DONE)
+- ✅ **Text Preprocessing** - SymSpell integration with Python
+- ✅ **Text Segmentation** - Sentence-based with line-based fallback  
+- ✅ **Model Factory Pattern** - Scalable architecture for multiple models
+- ✅ **Downloaded Models** - BART, RoBERTa, DeBERTa all working with real AI
+- ✅ **Comprehensive Testing** - 30+ tests including real AI integration
+- ✅ **SRP Architecture** - Clean separation: preprocessing → segmentation → classification
 
 ### Performance & Reliability  
 - [ ] **Local model caching optimization**
