@@ -5,20 +5,10 @@
 
 ### 1. Classification Model Improvements  
 - [ ] **Better Zero-Shot Classification Model**
-  - Upgrade from DistilBERT to RoBERTa-large-mnli or DeBERTa-v3-large
-  - Implement facebook/bart-large-mnli for improved accuracy
-  - Add confidence threshold tuning based on real usage data
+	- Upgrade from DistilBERT to RoBERTa-large-mnli or DeBERTa-v3-large
+	- Implement facebook/bart-large-mnli for improved accuracy
+	- Add confidence threshold tuning based on real usage data
 
-### 2. Window Dwell Time Feature
-- [ ] **Implement window dwell time tracking**
-  - Track how long user spends in each window/application
-  - Store timestamps for window enter/exit events
-  - Calculate and log study session durations
-  
-- [ ] **Add dwell time analytics**
-  - Generate reports on study time per application
-  - Identify most productive study sessions
-  - Export time tracking data for analysis
 
 ## Completed 
 

@@ -22,6 +22,8 @@ import { DistilBARTService } from './services/analysis/impl/DistilBARTService';
 
 import { ITextPreprocessor } from './services/preprocessing/ITextPreprocessor';
 import { TextPreprocessor } from './services/preprocessing/impl/TextPreprocessor';
+import { ITextSegmenter } from './services/preprocessing/ITextSegmenter';
+import { TextSegmenter } from './services/preprocessing/impl/TextSegmenter';
 
 import { IScreenCaptureService } from './services/capture/IScreenCaptureService';
 import { ElectronCaptureService } from './services/capture/impl/ElectronCaptureService';
@@ -54,6 +56,7 @@ container.registerSingleton<
 container.registerSingleton<IPollingSystem>('PollingSystem', PollingSystem);
 container.registerSingleton<IOcrService>('OcrService', TesseractOcrService);
 container.registerSingleton<ITextPreprocessor>('TextPreprocessor', TextPreprocessor);
+container.registerSingleton<ITextSegmenter>('TextSegmenter', TextSegmenter);
 container.registerSingleton<IClassificationService>(
   'ClassificationService',
   DistilBARTService
