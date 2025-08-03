@@ -66,6 +66,19 @@ const createMockConfig = (): ConfigService => ({
   windowCacheTTL: 900000,
 });
 
+const createMockModelFactory = (): any => ({
+  getAvailableStrategies: vi.fn().mockResolvedValue([]),
+  createBestAvailableClassifier: vi.fn(),
+});
+
+const createMockStrategyEvaluator = (): any => ({
+  recommendStrategy: vi.fn().mockResolvedValue({
+    strategy: 'zero-shot',
+    model: 'distilbert-base-uncased-mnli',
+    rationale: 'Best available strategy'
+  }),
+});
+
 // Test Helpers - Setup Functions
 const setupCacheEntry = (mockCache: ICache<string, { mode: string; lastClassified: number }>, mode: string, timestamp?: number): void => {
   const entry = { mode, lastClassified: timestamp || Date.now() };
@@ -102,6 +115,8 @@ describe("Orchestrator", () => {
   let mockBatcher: IBatcherService;
   let mockLogger: ILogger;
   let mockConfig: ConfigService;
+  let mockModelFactory: any;
+  let mockStrategyEvaluator: any;
 
   beforeEach(() => {
     mockCache = createMockCache();
@@ -113,6 +128,8 @@ describe("Orchestrator", () => {
     mockBatcher = createMockBatcher();
     mockLogger = createMockLogger();
     mockConfig = createMockConfig();
+    mockModelFactory = createMockModelFactory();
+    mockStrategyEvaluator = createMockStrategyEvaluator();
 
     orchestrator = new Orchestrator(
       mockCache,
@@ -123,7 +140,9 @@ describe("Orchestrator", () => {
       mockClassifier,
       mockBatcher,
       mockLogger,
-      mockConfig
+      mockConfig,
+      mockModelFactory,
+      mockStrategyEvaluator
     );
   });
 

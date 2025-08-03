@@ -17,6 +17,7 @@ export type ClassificationModelConfig = {
   fallbackModel: SupportedModel;
   useLocalModels: boolean;
   modelStoragePath: string;
+  threshold: number;
 };
 
 export const MODEL_SPECIFICATIONS: Record<SupportedModel, ModelInfo> = {
@@ -51,8 +52,9 @@ export const MODEL_SPECIFICATIONS: Record<SupportedModel, ModelInfo> = {
 };
 
 export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationModelConfig = {
-  activeModel: 'facebook/bart-large-mnli',
+  activeModel: 'microsoft/deberta-v3-large',
   fallbackModel: 'distilbert-base-uncased-mnli',
   useLocalModels: true,
-  modelStoragePath: './models'
+  modelStoragePath: './models',
+  threshold: 0.75
 };

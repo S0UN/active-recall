@@ -21,6 +21,13 @@ export class ScreenCaptureError extends DomainError {}
 // Classification errors
 export class ClassificationError extends DomainError {}
 
+// Model Factory errors
+export class ModelFactoryError extends DomainError {}
+export class StrategyNotFoundError extends ModelFactoryError {}
+export class ModelNotAvailableError extends ModelFactoryError {}
+export class ModelRequirementsNotMetError extends ModelFactoryError {}
+export class StrategyRegistrationError extends ModelFactoryError {}
+
 // Window management errors
 export class WindowDetectionError extends DomainError {}
 

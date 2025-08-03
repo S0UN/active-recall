@@ -18,14 +18,15 @@ import { IOcrService } from './services/analysis/IOcrService';
 import { TesseractOcrService } from './services/analysis/impl/TesseractOcrService';
 
 import { IClassificationService } from './services/analysis/IClassificationService';
-import { IModelFactory } from './services/analysis/IModelFactory';
-import { ModelFactory } from './services/analysis/impl/ModelFactory';
-import { DEFAULT_CLASSIFICATION_CONFIG, SupportedModel } from './services/analysis/IClassificationModelConfig';
+import { UniversalModelFactory } from './services/analysis/impl/UniversalModelFactory';
+import { StrategyEvaluator } from './services/analysis/impl/StrategyEvaluator';
 
 import { ITextPreprocessor } from './services/preprocessing/ITextPreprocessor';
 import { TextPreprocessor } from './services/preprocessing/impl/TextPreprocessor';
 import { ITextSegmenter } from './services/preprocessing/ITextSegmenter';
 import { TextSegmenter } from './services/preprocessing/impl/TextSegmenter';
+import { ISegmentedClassifier } from './services/analysis/ISegmentedClassifier';
+import { SegmentedClassificationService } from './services/analysis/impl/SegmentedClassificationService';
 
 import { IScreenCaptureService } from './services/capture/IScreenCaptureService';
 import { ElectronCaptureService } from './services/capture/impl/ElectronCaptureService';
@@ -59,18 +60,18 @@ container.registerSingleton<IPollingSystem>('PollingSystem', PollingSystem);
 container.registerSingleton<IOcrService>('OcrService', TesseractOcrService);
 container.registerSingleton<ITextPreprocessor>('TextPreprocessor', TextPreprocessor);
 container.registerSingleton<ITextSegmenter>('TextSegmenter', TextSegmenter);
-container.registerSingleton<IModelFactory>('ModelFactory', ModelFactory);
 
-const activeModel: SupportedModel = 
-  (process.env.CLASSIFICATION_MODEL as SupportedModel) || 
-  DEFAULT_CLASSIFICATION_CONFIG.activeModel;
+// Register segmented classification service
+container.registerSingleton<ISegmentedClassifier>('SegmentedClassifier', SegmentedClassificationService);
 
-container.registerSingleton<IClassificationService>('ClassificationService', {
-  useFactory: (container: any) => {
-    const factory = container.resolve('ModelFactory') as IModelFactory;
-    return factory.createClassifier(activeModel);
-  }
-} as any);
+// Register the strategy evaluator
+container.registerSingleton<StrategyEvaluator>('StrategyEvaluator', StrategyEvaluator);
+
+// Register the universal model factory
+container.registerSingleton<UniversalModelFactory>('ModelFactory', UniversalModelFactory);
+
+// Register classification service with smart strategy selection
+container.registerSingleton<IClassificationService>('ClassificationService', SegmentedClassificationService);
 container.registerSingleton<IScreenCaptureService>(
   'ScreenCaptureService',
   ElectronCaptureService

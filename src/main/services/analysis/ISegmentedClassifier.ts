@@ -1,12 +1,12 @@
 import { TextSegment } from '../preprocessing/ITextSegmenter';
 
-export interface SegmentClassificationResult {
+export type SegmentClassificationResult = {
 	segment: TextSegment;
 	classification: string;
 	confidence: number;
 }
 
-export interface SegmentedClassificationResult {
+export type SegmentedClassificationResult = {
 	overallClassification: string;
 	highestConfidence: number;
 	segmentResults: SegmentClassificationResult[];

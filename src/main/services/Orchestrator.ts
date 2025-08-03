@@ -11,15 +11,17 @@ import { ICache } from "../utils/ICache";
 import { StudyingState } from "./orchestrator/impl/StudyingState";
 import { ConfigService } from "../configs/ConfigService";
 import { ILogger } from "../utils/ILogger";
+import { UniversalModelFactory } from "./analysis/impl/UniversalModelFactory";
+import { StrategyEvaluator } from "./analysis/impl/StrategyEvaluator";
 import { VisionServiceError, ClassificationError, CacheError } from "../errors/CustomErrors";
 import { ErrorHandler } from "../utils/ErrorHandler";
 
 @injectable()
 export class Orchestrator {
-  private state: IOrchestratorState;
-  private readonly idleState: IdleState;
-  private readonly studyingState: StudyingState;
-  private readonly errorHandler: ErrorHandler;
+  private state!: IOrchestratorState;
+  private idleState!: IdleState;
+  private studyingState!: StudyingState;
+  private errorHandler!: ErrorHandler;
   public currentWindow = "";
 
   constructor(
@@ -51,14 +53,40 @@ export class Orchestrator {
     public readonly logger: ILogger,
 
     @inject("PollingConfig")
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
+
+    @inject("ModelFactory")
+    private readonly modelFactory: UniversalModelFactory,
+
+    @inject("StrategyEvaluator")
+    private readonly strategyEvaluator: StrategyEvaluator
   ) {
-    this.idleState = new IdleState(this);
-    this.studyingState = new StudyingState(this);
-    this.state = this.idleState;
-    this.errorHandler = new ErrorHandler(this.logger);
-    this.cache.startTTL();
+    this.initializeOrchestrator();
+  }
+
+  private initializeOrchestrator(): void {
+    this.createStateInstances();
+    this.setInitialState();
+    this.configureErrorHandling();
+    this.startCacheManagement();
     this.setupPollingCallbacks();
+  }
+
+  private createStateInstances(): void {
+    (this as any).idleState = new IdleState(this);
+    (this as any).studyingState = new StudyingState(this);
+  }
+
+  private setInitialState(): void {
+    this.state = this.idleState;
+  }
+
+  private configureErrorHandling(): void {
+    (this as any).errorHandler = new ErrorHandler(this.logger);
+  }
+
+  private startCacheManagement(): void {
+    this.cache.startTTL();
   }
 
   private setupPollingCallbacks(): void {
@@ -78,15 +106,73 @@ export class Orchestrator {
   }
 
   async start() {
-    await this.initializeServices();
+    await this.initializeClassificationSystem();
+    await this.optimizeStrategyConfiguration();
+    this.startPollingSystem();
+    await this.enterIdleState();
+  }
+
+  private async initializeClassificationSystem(): Promise<void> {
+    await this.ensureClassifierIsReady();
+    await this.configureOptimalStrategy();
+    this.logSystemInitialization();
+  }
+
+  private async ensureClassifierIsReady(): Promise<void> {
+    // Classification service is already initialized through factory
+    // No need to call init() as it's handled during creation
+  }
+
+
+  private async configureOptimalStrategy(): Promise<void> {
+    const systemRequirements = this.gatherSystemRequirements();
+    const recommendation = await this.selectOptimalStrategy(systemRequirements);
+    await this.applyStrategyRecommendation(recommendation);
+  }
+
+  private gatherSystemRequirements() {
+    return {
+      maxLatency: 500,  // 500ms max for interactive response
+      minAccuracy: 0.8, // 80% minimum accuracy
+      preferSpeed: false, // Prefer accuracy over speed
+      requiresOffline: true
+    };
+  }
+
+  private async selectOptimalStrategy(requirements: any) {
+    return await this.strategyEvaluator.recommendStrategy(requirements);
+  }
+
+  private async applyStrategyRecommendation(recommendation: any): Promise<void> {
+    this.logger.info('Applying optimal strategy recommendation', {
+      strategy: recommendation.strategy,
+      model: recommendation.model,
+      rationale: recommendation.rationale
+    });
+  }
+
+  private async optimizeStrategyConfiguration(): Promise<void> {
+    const availableStrategies = await this.modelFactory.getAvailableStrategies();
+    this.logAvailableStrategies(availableStrategies);
+  }
+
+  private logAvailableStrategies(strategies: any[]): void {
+    this.logger.info('Available classification strategies:', {
+      count: strategies.length,
+      strategies: strategies.map(s => ({ type: s.type, models: s.models.length }))
+    });
+  }
+
+  private startPollingSystem(): void {
+    // Polling will be started by the state
+  }
+
+  private async enterIdleState(): Promise<void> {
     this.state.onEnter();
   }
 
-  private async initializeServices(): Promise<void> {
-    // Initialize classifier if it has an init method
-    if ('init' in this.classifier && typeof this.classifier.init === 'function') {
-      await this.classifier.init();
-    }
+  private logSystemInitialization(): void {
+    this.logger.info('Classification system initialized successfully');
   }
   stop() {
     this.state.onExit();

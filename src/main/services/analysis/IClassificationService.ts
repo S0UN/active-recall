@@ -1,4 +1,4 @@
-export interface ClassificationResult {
+export type ClassificationResult = {
   classification: string;
   confidence: number;
 }
