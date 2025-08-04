@@ -56,6 +56,9 @@ const createMockClassifier = (): IClassificationService => ({
 const createMockBatcher = (): IBatcherService => ({
   add: vi.fn(),
   flushIfNeeded: vi.fn(),
+  getBatches: vi.fn().mockReturnValue([]),
+  getBatchesAsJson: vi.fn().mockReturnValue('{"batches":[]}'),
+  clearBatches: vi.fn(),
 });
 
 const createMockConfig = (): ConfigService => ({
@@ -64,6 +67,7 @@ const createMockConfig = (): ConfigService => ({
   idleRevalidationIntervalMs: 30000,
   idleRevalidationThresholdMs: 900000,
   windowCacheTTL: 900000,
+  newWindowPipelineDelayMs: 15000,
 });
 
 const createMockModelFactory = (): any => ({
@@ -71,13 +75,6 @@ const createMockModelFactory = (): any => ({
   createBestAvailableClassifier: vi.fn(),
 });
 
-const createMockStrategyEvaluator = (): any => ({
-  recommendStrategy: vi.fn().mockResolvedValue({
-    strategy: 'zero-shot',
-    model: 'distilbert-base-uncased-mnli',
-    rationale: 'Best available strategy'
-  }),
-});
 
 // Test Helpers - Setup Functions
 const setupCacheEntry = (mockCache: ICache<string, { mode: string; lastClassified: number }>, mode: string, timestamp?: number): void => {
@@ -116,7 +113,6 @@ describe("Orchestrator", () => {
   let mockLogger: ILogger;
   let mockConfig: ConfigService;
   let mockModelFactory: any;
-  let mockStrategyEvaluator: any;
 
   beforeEach(() => {
     mockCache = createMockCache();
@@ -129,7 +125,6 @@ describe("Orchestrator", () => {
     mockLogger = createMockLogger();
     mockConfig = createMockConfig();
     mockModelFactory = createMockModelFactory();
-    mockStrategyEvaluator = createMockStrategyEvaluator();
 
     orchestrator = new Orchestrator(
       mockCache,
@@ -141,8 +136,7 @@ describe("Orchestrator", () => {
       mockBatcher,
       mockLogger,
       mockConfig,
-      mockModelFactory,
-      mockStrategyEvaluator
+      mockModelFactory
     );
   });
 
@@ -206,7 +200,7 @@ describe("Orchestrator", () => {
 
       await orchestrator.runFullPipeline(mockWindow);
 
-      expect(mockBatcher.add).toHaveBeenCalledWith(capturedText);
+      expect(mockBatcher.add).toHaveBeenCalledWith("", "Studying", capturedText);
       expect(mockBatcher.flushIfNeeded).toHaveBeenCalled();
     });
 
@@ -220,7 +214,7 @@ describe("Orchestrator", () => {
       await orchestrator.runFullPipeline(mockWindow);
 
       expect(changeStateSpy).not.toHaveBeenCalled();
-      expect(mockBatcher.add).toHaveBeenCalledWith(capturedText);
+      expect(mockBatcher.add).toHaveBeenCalledWith("", "Studying", capturedText);
     });
   });
 

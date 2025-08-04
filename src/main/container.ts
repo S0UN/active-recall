@@ -29,7 +29,7 @@ import { ISegmentedClassifier } from './services/analysis/ISegmentedClassifier';
 import { SegmentedClassificationService } from './services/analysis/impl/SegmentedClassificationService';
 
 import { IScreenCaptureService } from './services/capture/IScreenCaptureService';
-import { ElectronCaptureService } from './services/capture/impl/ElectronCaptureService';
+import { HybridCaptureService } from './services/capture/impl/HybridCaptureService';
 
 import { IBatcherService } from './services/network/IBatcherService';
 import { BatcherService } from './services/network/impl/BatcherService';
@@ -74,7 +74,7 @@ container.registerSingleton<UniversalModelFactory>('ModelFactory', UniversalMode
 container.registerSingleton<IClassificationService>('ClassificationService', SegmentedClassificationService);
 container.registerSingleton<IScreenCaptureService>(
   'ScreenCaptureService',
-  ElectronCaptureService
+  HybridCaptureService
 );
 container.registerSingleton<IBatcherService>(
   'BatcherService',

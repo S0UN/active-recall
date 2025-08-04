@@ -19,6 +19,7 @@ const createMockConfigService = (): ConfigService => ({
   idleRevalidationIntervalMs: 30000,
   idleRevalidationThresholdMs: 900000,
   windowCacheTTL: 900000,
+  newWindowPipelineDelayMs: 15000,
 });
 
 describe("WindowChangePoller", () => {

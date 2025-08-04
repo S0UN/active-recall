@@ -12,8 +12,7 @@ import { StudyingState } from "./orchestrator/impl/StudyingState";
 import { ConfigService } from "../configs/ConfigService";
 import { ILogger } from "../utils/ILogger";
 import { UniversalModelFactory } from "./analysis/impl/UniversalModelFactory";
-import { StrategyEvaluator } from "./analysis/impl/StrategyEvaluator";
-import { VisionServiceError, ClassificationError, CacheError } from "../errors/CustomErrors";
+import { VisionServiceError, ClassificationError, CacheError, ModelInitializationError, ModelNotFoundError, ModelInferenceError, ScreenCaptureError } from "../errors/CustomErrors";
 import { ErrorHandler } from "../utils/ErrorHandler";
 
 @injectable()
@@ -23,6 +22,7 @@ export class Orchestrator {
   private studyingState!: StudyingState;
   private errorHandler!: ErrorHandler;
   public currentWindow = "";
+  private pendingPipelineTimer: NodeJS.Timeout | null = null;
 
   constructor(
     @inject("WindowCache")
@@ -56,10 +56,7 @@ export class Orchestrator {
     private readonly config: ConfigService,
 
     @inject("ModelFactory")
-    private readonly modelFactory: UniversalModelFactory,
-
-    @inject("StrategyEvaluator")
-    private readonly strategyEvaluator: StrategyEvaluator
+    private readonly modelFactory: UniversalModelFactory
   ) {
     this.initializeOrchestrator();
   }
@@ -125,29 +122,10 @@ export class Orchestrator {
 
 
   private async configureOptimalStrategy(): Promise<void> {
-    const systemRequirements = this.gatherSystemRequirements();
-    const recommendation = await this.selectOptimalStrategy(systemRequirements);
-    await this.applyStrategyRecommendation(recommendation);
-  }
-
-  private gatherSystemRequirements() {
-    return {
-      maxLatency: 500,  // 500ms max for interactive response
-      minAccuracy: 0.8, // 80% minimum accuracy
-      preferSpeed: false, // Prefer accuracy over speed
-      requiresOffline: true
-    };
-  }
-
-  private async selectOptimalStrategy(requirements: any) {
-    return await this.strategyEvaluator.recommendStrategy(requirements);
-  }
-
-  private async applyStrategyRecommendation(recommendation: any): Promise<void> {
-    this.logger.info('Applying optimal strategy recommendation', {
-      strategy: recommendation.strategy,
-      model: recommendation.model,
-      rationale: recommendation.rationale
+    // Using default zero-shot strategy with roberta-large-mnli
+    this.logger.info('Using default classification strategy', {
+      strategy: 'zero-shot',
+      model: 'roberta-large-mnli'
     });
   }
 
@@ -218,18 +196,87 @@ export class Orchestrator {
       this.logger.info(`Classification result: ${classificationResult}`);
       this.handleModeTransition(newWindow, currentMode, classificationResult);
       await this.processStudyingContent(classificationResult, text);
-    } catch (error) {
-      if (error instanceof VisionServiceError || error instanceof ClassificationError || error instanceof CacheError) {
+    } catch (error: unknown) {
+      // Handle different error types with appropriate strategies
+      if (error instanceof CacheError) {
+        // Cache errors are critical - fail fast
         throw error;
       }
-      throw new VisionServiceError('Failed to run full pipeline', error as Error);
+      
+      if (error instanceof ModelNotFoundError) {
+        // Model not found - log warning but continue (graceful degradation)
+        this.logger.warn(`Model not available for window ${newWindow}: ${error.message}`);
+        this.logger.info('Continuing with degraded functionality');
+        return;
+      }
+      
+      if (error instanceof ModelInitializationError || error instanceof ModelInferenceError) {
+        // Model errors - rethrow with context for debugging
+        throw new ClassificationError(
+          `Classification pipeline failed for window ${newWindow}: ${error.message}`,
+          error
+        );
+      }
+      
+      if (error instanceof VisionServiceError || error instanceof ScreenCaptureError) {
+        // Vision/Screen capture errors - rethrow with context
+        const errorMessage = error instanceof Error ? error.message : 'Unknown vision error';
+        throw new VisionServiceError(
+          `Vision pipeline failed for window ${newWindow}: ${errorMessage}`,
+          error instanceof Error ? error : undefined
+        );
+      }
+      
+      if (error instanceof ClassificationError) {
+        // Already a classification error - rethrow with additional context
+        throw new ClassificationError(
+          `Pipeline failed for window ${newWindow}: ${error.message}`,
+          error
+        );
+      }
+      
+      // Unknown error - wrap and rethrow for debugging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new VisionServiceError(
+        `Unexpected error in pipeline for window ${newWindow}: ${errorMessage}`,
+        error instanceof Error ? error : undefined
+      );
     }
   }
 
   private async captureAndClassifyWindow(): Promise<{ text: string; classificationResult: string }> {
-    const text = await this.visionService.captureAndRecognizeText();
-    const classificationResult = await this.classifier.classify(text);
-    return { text, classificationResult };
+    this.logger.info('Capturing screen...');
+    
+    try {
+      const text = await this.visionService.captureAndRecognizeText();
+      const classificationResult = await this.classifier.classify(text);
+      return { text, classificationResult };
+    } catch (error: unknown) {
+      // Capture specific error context and rethrow
+      if (error instanceof Error) {
+        if (error.message.includes('captureAndRecognizeText') || error.message.includes('screenshot')) {
+          throw new VisionServiceError(
+            'Screen capture failed. This may be due to missing OCR dependencies or permissions.',
+            error
+          );
+        }
+      }
+      
+      // Model-related errors should bubble up as-is for proper handling
+      if (error instanceof ModelNotFoundError || 
+          error instanceof ModelInitializationError || 
+          error instanceof ModelInferenceError ||
+          error instanceof ClassificationError) {
+        throw error;
+      }
+      
+      // Unknown error - wrap with context
+      const errorMessage = error instanceof Error ? error.message : 'Unknown capture/classification error';
+      throw new VisionServiceError(
+        `Failed to capture and classify window content: ${errorMessage}`,
+        error instanceof Error ? error : undefined
+      );
+    }
   }
 
   private getCurrentWindowMode(windowId: string): string {
@@ -264,8 +311,8 @@ export class Orchestrator {
   }
 
   private async processStudyingContent(mode: string, text: string): Promise<void> {
-    if (mode === "Studying") {
-      this.batcher.add(text);
+    if (mode !== "idle") {
+      this.batcher.add(this.currentWindow, mode, text);
       await this.batcher.flushIfNeeded();
     }
   }
@@ -339,10 +386,13 @@ export class Orchestrator {
       }
       this.currentWindow = newKey;
       
-      // For new windows, set initial state and run immediate classification
+      // Cancel any pending pipeline execution from previous window
+      this.cancelPendingPipeline();
+      
+      // For new windows, set initial state and schedule delayed classification
       if (!this.cache.has(newKey)) {
         this.updateCacheAndTransition(newKey, "Studying", this.studyingState);
-        await this.runFullPipeline(newKey);
+        this.schedulePipelineExecution(newKey);
       } else {
         this.transitionStateOnWindowChange(newKey);
       }
@@ -393,5 +443,28 @@ export class Orchestrator {
 
   public startIdleRevalidationPolling(): void {
     this.idleRevalPoller.start();
+  }
+
+  private cancelPendingPipeline(): void {
+    if (this.pendingPipelineTimer) {
+      clearTimeout(this.pendingPipelineTimer);
+      this.pendingPipelineTimer = null;
+      this.logger.info('Cancelled pending pipeline execution due to window change');
+    }
+  }
+
+  private schedulePipelineExecution(windowKey: string): void {
+    this.pendingPipelineTimer = setTimeout(async () => {
+      // Verify the window is still the current one before executing
+      if (this.currentWindow === windowKey) {
+        this.logger.info(`Executing delayed pipeline for window: ${windowKey}`);
+        await this.runFullPipeline(windowKey);
+      } else {
+        this.logger.info(`Skipping pipeline execution for ${windowKey} - window changed`);
+      }
+      this.pendingPipelineTimer = null;
+    }, this.config.newWindowPipelineDelayMs);
+    
+    this.logger.info(`Scheduled pipeline execution for ${windowKey} in ${this.config.newWindowPipelineDelayMs}ms`);
   }
 }

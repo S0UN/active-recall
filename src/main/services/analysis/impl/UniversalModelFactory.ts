@@ -4,8 +4,9 @@ import { IClassificationService } from '../IClassificationService';
 import { TopicClassificationService } from './TopicClassificationService';
 import { EmbeddingClassificationService, EmbeddingModel, EMBEDDING_MODEL_SPECS } from './EmbeddingClassificationService';
 import { HybridClassificationService } from './HybridClassificationService';
-import { SupportedModel, MODEL_SPECIFICATIONS } from '../IClassificationModelConfig';
-import { StrategyEvaluator, TestCase } from './StrategyEvaluator';
+import { SupportedModel, MODEL_SPECIFICATIONS, DEFAULT_CLASSIFICATION_CONFIG } from '../IClassificationModelConfig';
+import { IModelPathResolver, QuantizedModelPathResolver, FullModelPathResolver } from '../IModelPathResolver';
+import { StrategyEvaluator } from './StrategyEvaluator';
 import { StrategyNotFoundError, ModelNotAvailableError } from '../../../errors/CustomErrors';
 import Logger from 'electron-log';
 import * as fs from 'fs';
@@ -13,28 +14,6 @@ import * as path from 'path';
 
 export type StrategyType = 'zero-shot' | 'embedding' | 'hybrid' | 'auto';
 
-export type ModelRequirements = {
-  maxLatency?: number;        // milliseconds
-  minAccuracy?: number;       // 0-1
-  maxMemoryUsage?: number;    // MB
-  preferSpeed?: boolean;      // prioritize speed over accuracy
-  requiresOffline?: boolean;  // must work offline
-  supportedTopics?: string[]; // specific topic requirements
-}
-
-export type StrategyRecommendation = {
-  strategy: StrategyType;
-  model: string;
-  expectedAccuracy: number;
-  expectedLatency: number;
-  memoryUsage: number;
-  rationale: string;
-  alternatives: Array<{
-    strategy: StrategyType;
-    model: string;
-    reason: string;
-  }>;
-}
 
 type StrategyFactory = {
   create(model: string): Promise<ClassificationStrategy>;
@@ -46,10 +25,26 @@ type StrategyFactory = {
 export class UniversalModelFactory {
   private readonly strategies: Map<StrategyType, StrategyFactory> = new Map();
   private readonly evaluator: StrategyEvaluator;
+  private readonly modelPathResolver: IModelPathResolver;
 
   constructor() {
     this.evaluator = new StrategyEvaluator();
+    this.modelPathResolver = this.createModelPathResolver();
     this.initializeFactory();
+  }
+
+  private createModelPathResolver(): IModelPathResolver {
+    const envValue = process.env.USE_FULL_MODELS;
+    const useFullModels = envValue === 'true' || DEFAULT_CLASSIFICATION_CONFIG.useFullModels;
+    
+    Logger.info('Model path resolver configuration:', {
+      USE_FULL_MODELS_env: envValue,
+      defaultConfig: DEFAULT_CLASSIFICATION_CONFIG.useFullModels,
+      usingFullModels: useFullModels,
+      resolverType: useFullModels ? 'FullModelPathResolver' : 'QuantizedModelPathResolver'
+    });
+    
+    return useFullModels ? new FullModelPathResolver() : new QuantizedModelPathResolver();
   }
 
   private initializeFactory(): void {
@@ -88,21 +83,14 @@ export class UniversalModelFactory {
     model: string
   ): Promise<{ type: StrategyType; model: string }> {
     if (this.isAutoStrategy(strategyType)) {
-      return await this.selectOptimalStrategy();
+      // Default to zero-shot with roberta-large-mnli when auto is selected
+      return { type: 'zero-shot', model: 'roberta-large-mnli' };
     }
     return { type: strategyType, model };
   }
 
   private isAutoStrategy(strategyType: StrategyType): boolean {
     return strategyType === 'auto';
-  }
-
-  private async selectOptimalStrategy(): Promise<{ type: StrategyType; model: string }> {
-    const recommendation = await this.recommendStrategy();
-    return {
-      type: recommendation.strategy,
-      model: recommendation.model
-    };
   }
 
   private validateStrategyRequest(strategyType: StrategyType, model: string): void {
@@ -155,9 +143,6 @@ export class UniversalModelFactory {
     Logger.info(`Created ${strategyType} strategy with model: ${model}`);
   }
 
-  public async recommendStrategy(requirements?: ModelRequirements): Promise<StrategyRecommendation> {
-    return await this.evaluator.recommendStrategy(requirements || {});
-  }
 
   public async getAvailableStrategies(): Promise<Array<{
     type: StrategyType;
@@ -195,40 +180,10 @@ export class UniversalModelFactory {
     }));
   }
 
-  public async benchmarkStrategies(
-    testCases: TestCase[],
-    topic: string
-  ): Promise<Map<string, { accuracy: number; avgLatency: number }>> {
-    const createFn = this.createBenchmarkStrategyFunction(topic);
-    const results = await this.evaluator.benchmarkStrategies(testCases, topic, createFn);
-    return this.convertBenchmarkResults(results);
-  }
 
-  private createBenchmarkStrategyFunction(topic: string) {
-    return async (type: StrategyType, model: string, config: any) => {
-      return await this.createStrategy(type, model, { ...config, topic });
-    };
-  }
-
-  private convertBenchmarkResults(results: any): Map<string, { accuracy: number; avgLatency: number }> {
-    const converted = new Map();
-    for (const [key, result] of results) {
-      converted.set(key, {
-        accuracy: result.accuracy,
-        avgLatency: result.avgLatency
-      });
-    }
-    return converted;
-  }
-
-  // Creates the best available classifier using auto-selection
+  // Creates the best available classifier using default zero-shot
   public async createBestAvailableClassifier(): Promise<IClassificationService> {
-    const recommendation = await this.evaluator.recommendStrategy({});
-    const strategy = await this.createStrategy(
-      recommendation.strategy, 
-      recommendation.model
-    );
-    
+    const strategy = await this.createStrategy('zero-shot', 'roberta-large-mnli');
     return this.wrapStrategy(strategy);
   }
 
@@ -248,13 +203,8 @@ export class UniversalModelFactory {
       return this.wrapStrategy(strategy);
     }
 
-    // Auto-select best strategy
-    const recommendation = await this.recommendStrategy();
-    const strategy = await this.createStrategy(
-      recommendation.strategy, 
-      recommendation.model
-    );
-    
+    // Default to zero-shot with roberta-large-mnli
+    const strategy = await this.createStrategy('zero-shot', 'roberta-large-mnli');
     return this.wrapStrategy(strategy);
   }
 
@@ -281,7 +231,8 @@ export class UniversalModelFactory {
     const availableModels = [];
     
     for (const model of models) {
-      if (await this.checkModelAvailability(MODEL_SPECIFICATIONS[model].localModelPath)) {
+      const modelPath = this.modelPathResolver.resolvePath(model);
+      if (await this.checkModelAvailability(modelPath)) {
         availableModels.push(model);
       }
     }

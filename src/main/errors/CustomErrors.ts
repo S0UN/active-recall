@@ -20,6 +20,9 @@ export class ScreenCaptureError extends DomainError {}
 
 // Classification errors
 export class ClassificationError extends DomainError {}
+export class ModelInitializationError extends ClassificationError {}
+export class ModelNotFoundError extends ClassificationError {}
+export class ModelInferenceError extends ClassificationError {}
 
 // Model Factory errors
 export class ModelFactoryError extends DomainError {}

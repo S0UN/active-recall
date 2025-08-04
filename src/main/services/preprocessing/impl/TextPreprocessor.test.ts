@@ -46,10 +46,10 @@ describe('TextPreprocessor', () => {
     });
 
     it('should remove file path separators', async () => {
-      const input = 'src/main/services/analysis/impl/DistilBARTService.ts';
+      const input = 'src/main/services/analysis/impl/TopicClassificationService.ts';
       const result = await preprocessor.preprocess(input);
       
-      expect(result).toContain('DistilBARTService.ts');
+      expect(result).toContain('TopicClassificationService.ts');
       expect(result.split('/').length).toBeLessThan(input.split('/').length);
     });
   });
@@ -73,11 +73,11 @@ describe('TextPreprocessor', () => {
     });
 
     it('should preserve correctly spelled technical terms', async () => {
-      const input = 'IClassificationService DistilBARTService TesseractOcrService';
+      const input = 'IClassificationService TopicClassificationService TesseractOcrService';
       const result = await preprocessor.preprocess(input);
       
       expect(result).toContain('IClassificationService');
-      expect(result).toContain('DistilBARTService');
+      expect(result).toContain('TopicClassificationService');
       expect(result).toContain('TesseractOcrService');
     });
   });
@@ -85,7 +85,7 @@ describe('TextPreprocessor', () => {
   describe('content extraction', () => {
     it('should extract meaningful content from mixed UI and text', async () => {
       const input = `
-        TS VisionService.ts TS DistilBARTService.ts 1, M
+        TS VisionService.ts TS TopicClassificationService.ts 1, M
         export class EducationalContentDetector implements IClassificationService {
         private static readonly STUDYING THRESHOLD = 0.5;
       `;
@@ -106,7 +106,7 @@ describe('TextPreprocessor', () => {
     });
 
     it('should handle real OCR output from the example', async () => {
-      const input = `«> £ active-recall 8 LEN A= | | [ia EXPLORER TS VisionService.ts TS DistilBARTService.ts 1, M
+      const input = `«> £ active-recall 8 LEN A= | | [ia EXPLORER TS VisionService.ts TS TopicClassificationService.ts 1, M
       TS EducationalContentDetectorts 5,U X Ts TesseractOcrService.ts TS Orchestrator.ts Ts ErrorHandlerts`;
       const result = await preprocessor.preprocess(input);
       
@@ -114,7 +114,7 @@ describe('TextPreprocessor', () => {
       expect(result).not.toContain('£');
       expect(result).not.toContain('8 LEN A=');
       expect(result).toContain('VisionService');
-      expect(result).toContain('DistilBARTService');
+      expect(result).toContain('TopicClassificationService');
       expect(result).toContain('TesseractOcrService');
     });
   });

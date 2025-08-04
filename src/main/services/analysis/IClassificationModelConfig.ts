@@ -18,6 +18,7 @@ export type ClassificationModelConfig = {
   useLocalModels: boolean;
   modelStoragePath: string;
   threshold: number;
+  useFullModels?: boolean; // true for full models, false for quantized
 };
 
 export const MODEL_SPECIFICATIONS: Record<SupportedModel, ModelInfo> = {
@@ -56,5 +57,6 @@ export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationModelConfig = {
   fallbackModel: 'distilbert-base-uncased-mnli',
   useLocalModels: true,
   modelStoragePath: './models',
-  threshold: 0.75
+  threshold: 0.5,
+  useFullModels: false // Default to quantized models for better performance
 };

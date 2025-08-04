@@ -1,4 +1,8 @@
 import 'reflect-metadata';
+// Load environment variables from .env file
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { app, BrowserWindow } from 'electron';
 import container from './container';
 import { Orchestrator } from './services/Orchestrator';
@@ -6,6 +10,7 @@ import { ILogger } from './utils/ILogger';
 import { TesseractOcrService } from './services/analysis/impl/TesseractOcrService';
 import { systemPreferences } from 'electron';
 import { dialog, desktopCapturer } from 'electron';
+import { ModelNotFoundError, ModelInitializationError, VisionServiceError, ClassificationError } from './errors/CustomErrors';
 
 console.log(' execPath:', process.execPath);
 
@@ -13,15 +18,50 @@ console.log(' execPath:', process.execPath);
 const logger = container.resolve<ILogger>('LoggerService');
 const orchestrator = container.resolve<Orchestrator>('Orchestrator');
 
-// Global error handlers
+// Global error handlers with smart handling
 process.on('uncaughtException', (error) => {
+  if (error instanceof ModelNotFoundError) {
+    logger.warn('Model not found - continuing with degraded functionality:', error.message);
+    return; // Don't quit on missing models
+  }
+  
+  if (error instanceof VisionServiceError) {
+    logger.warn('Vision service error - continuing:', error.message);
+    return; // Don't quit on vision errors
+  }
+  
+  // For other critical errors, log and quit
   logger.error('Uncaught Exception:', error);
-  // It's generally recommended to quit the app on an uncaught exception
   app.quit();
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled Rejection at:', reason as Error, 'promise:', promise);
+  const error = reason as Error;
+  
+  if (error instanceof ModelNotFoundError) {
+    logger.warn('Model not found (unhandled promise):', error.message);
+    logger.info('App will continue with available models');
+    return;
+  }
+  
+  if (error instanceof ModelInitializationError) {
+    logger.warn('Model initialization failed (unhandled promise):', error.message);
+    logger.info('App will continue with available models');
+    return;
+  }
+  
+  if (error instanceof VisionServiceError) {
+    logger.warn('Vision service error (unhandled promise):', error.message);
+    return;
+  }
+  
+  if (error instanceof ClassificationError) {
+    logger.warn('Classification error (unhandled promise):', error.message);
+    return;
+  }
+  
+  // Log other unhandled rejections but don't crash in development
+  logger.error('Unhandled Rejection at:', error, 'promise:', promise);
 });
 
 function createWindow() {

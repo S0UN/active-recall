@@ -13,7 +13,6 @@ import { ClassificationError } from '../../../errors/CustomErrors';
 import Logger from 'electron-log';
 
 export type SegmentedClassificationConfig = {
-  studyingThreshold?: number;
   strategyType?: StrategyType;
   modelName?: string;
   topic?: string;
@@ -22,8 +21,7 @@ export type SegmentedClassificationConfig = {
 
 @injectable()
 export class SegmentedClassificationService implements ISegmentedClassifier, IClassificationService {
-  private static readonly DEFAULT_STUDYING_THRESHOLD = 0.65;
-  private static readonly DEFAULT_TOPIC = 'studying';
+  private static readonly DEFAULT_TOPIC = 'Computer Science';
   
   private lastClassificationResult: SegmentedClassificationResult | null = null;
   private currentClassifier?: ClassificationStrategy;
@@ -39,11 +37,10 @@ export class SegmentedClassificationService implements ISegmentedClassifier, ICl
 
   private createCompleteConfiguration(config?: SegmentedClassificationConfig): Required<SegmentedClassificationConfig> {
     return {
-      studyingThreshold: config?.studyingThreshold ?? SegmentedClassificationService.DEFAULT_STUDYING_THRESHOLD,
       strategyType: config?.strategyType ?? 'zero-shot',
-      modelName: config?.modelName ?? 'roberta-large-mnli',
+      modelName: config?.modelName ?? 'facebook/bart-large-mnli',
       topic: config?.topic ?? SegmentedClassificationService.DEFAULT_TOPIC,
-      confidenceThreshold: config?.confidenceThreshold ?? 0.5
+      confidenceThreshold: config?.confidenceThreshold ?? 0.7
     };
   }
 
@@ -177,7 +174,7 @@ export class SegmentedClassificationService implements ISegmentedClassifier, ICl
   }
 
   private meetsStudyingThreshold(result: SegmentedClassificationResult): boolean {
-    return result.highestConfidence >= this.config.studyingThreshold && 
+    return result.highestConfidence >= this.config.confidenceThreshold && 
            result.overallClassification === 'studying';
   }
   
