@@ -14,7 +14,7 @@
 
 ## Feasibility Assessment
 
-### ✅ **YES, it's feasible for your use case!**
+### **YES, it's feasible for your use case!**
 
 **Why it works:**
 1. **Modern Mac**: Your system can easily handle 2GB for a model
@@ -44,14 +44,14 @@
 
 ```
 Classification Time (per text):
-- Quantized: 100-200ms ✅ (current)
-- Full Model: 300-500ms ✅ (still fast enough)
-- API Call: 500-1000ms ⚠️ (network dependent)
+- Quantized: 100-200ms  (current)
+- Full Model: 300-500ms  (still fast enough)
+- API Call: 500-1000ms (network dependent)
 
 Memory Usage:
-- Quantized: 500MB ✅
-- Full Model: 1.5GB ✅ (one-time load)
-- Multiple Models: 6GB+ ❌ (unnecessary)
+- Quantized: 500MB 
+- Full Model: 1.5GB  (one-time load)
+- Multiple Models: 6GB+  (unnecessary)
 ```
 
 ## Recommendation

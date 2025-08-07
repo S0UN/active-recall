@@ -380,8 +380,8 @@ benchmark.forEach((metrics, strategy) => {
 The extensible factory architecture provides a robust foundation for topic classification that can adapt to different requirements and easily incorporate new approaches. The automatic model selection ensures optimal performance while the strategy pattern allows for easy extension and customization.
 
 **Key Benefits:**
-- ✅ **Flexibility**: Multiple strategies for different use cases
-- ✅ **Performance**: Automatic optimization based on requirements
-- ✅ **Extensibility**: Easy to add new models and approaches
-- ✅ **Observability**: Built-in monitoring and benchmarking
-- ✅ **Compatibility**: Maintains backward compatibility with existing code
+- **Flexibility**: Multiple strategies for different use cases
+- **Performance**: Automatic optimization based on requirements
+- **Extensibility**: Easy to add new models and approaches
+- **Observability**: Built-in monitoring and benchmarking
+- **Compatibility**: Maintains backward compatibility with existing code

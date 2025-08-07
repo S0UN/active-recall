@@ -122,10 +122,10 @@ export class Orchestrator {
 
 
   private async configureOptimalStrategy(): Promise<void> {
-    // Using default zero-shot strategy with roberta-large-mnli
+    // Using default zero-shot strategy with BART large MNLI
     this.logger.info('Using default classification strategy', {
       strategy: 'zero-shot',
-      model: 'roberta-large-mnli'
+      model: 'facebook/bart-large-mnli'
     });
   }
 

@@ -6,7 +6,7 @@
 
 ## Key Findings
 
-### 1. Single-Label Approach Works! ✅
+### 1. Single-Label Approach Works! 
 
 By using only one label ("This text is about [topic]") and adjusting the confidence threshold, we can effectively distinguish between topic-related and unrelated content.
 
@@ -69,7 +69,7 @@ Shows highest confidence scores overall but requires higher thresholds:
 
 ## Implementation Recommendations
 
-### 1. Use Single-Label Classification ✅
+### 1. Use Single-Label Classification 
 
 Replace the binary classification approach with single-label:
 

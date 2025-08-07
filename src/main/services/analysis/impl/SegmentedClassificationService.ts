@@ -17,6 +17,7 @@ export type SegmentedClassificationConfig = {
   modelName?: string;
   topic?: string;
   confidenceThreshold?: number;
+  segmentThresholdProportion?: number;
 }
 
 
@@ -24,7 +25,7 @@ export type SegmentedClassificationConfig = {
 // Wont do for now as the information might be useful for debugging later on
 @injectable()
 export class SegmentedClassificationService implements ISegmentedClassifier, IClassificationService {
-  private static readonly DEFAULT_TOPIC = 'Computer Science';
+  private static readonly DEFAULT_TOPIC = 'computer science';
   
   private lastClassificationResult: SegmentedClassificationResult | null = null;
   private currentClassifier?: ClassificationStrategy;
@@ -40,11 +41,24 @@ export class SegmentedClassificationService implements ISegmentedClassifier, ICl
 
   private createCompleteConfiguration(config?: SegmentedClassificationConfig): Required<SegmentedClassificationConfig> {
     return {
-      strategyType: config?.strategyType ?? 'zero-shot',
+      strategyType: 'zero-shot', // Only using zero-shot strategy
       modelName: config?.modelName ?? 'facebook/bart-large-mnli',
       topic: config?.topic ?? SegmentedClassificationService.DEFAULT_TOPIC,
-      confidenceThreshold: config?.confidenceThreshold ?? 0.7
+      confidenceThreshold: config?.confidenceThreshold ?? 0.85, // Lower threshold for testing
+      segmentThresholdProportion: config?.segmentThresholdProportion ?? this.getSegmentThresholdFromEnv()
     };
+  }
+  
+  private getSegmentThresholdFromEnv(): number {
+    const envValue = process.env.SEGMENT_THRESHOLD_PROPORTION;
+    if (envValue) {
+      const parsed = parseFloat(envValue);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+        return parsed;
+      }
+      Logger.warn(`Invalid SEGMENT_THRESHOLD_PROPORTION value: ${envValue}, using default: 0.4`);
+    }
+    return 0.4; // 40% of segments must be studying
   }
 
   // IClassificationService implementation
@@ -161,9 +175,16 @@ export class SegmentedClassificationService implements ISegmentedClassifier, ICl
     }
     
     const highestConfidenceResult = this.findHighestConfidenceResult(results);
+    const studyingSegments = this.countStudyingSegments(results);
+    const studyingProportion = studyingSegments / results.length;
+    
+    // Overall classification based on segment proportion threshold
+    const overallClassification = studyingProportion >= this.config.segmentThresholdProportion 
+      ? highestConfidenceResult.classification 
+      : 'idle';
     
     return {
-      overallClassification: highestConfidenceResult.classification,
+      overallClassification,
       highestConfidence: highestConfidenceResult.confidence,
       segmentResults: results
     };
@@ -178,8 +199,30 @@ export class SegmentedClassificationService implements ISegmentedClassifier, ICl
   }
 
   private meetsStudyingThreshold(result: SegmentedClassificationResult): boolean {
-    return result.highestConfidence >= this.config.confidenceThreshold && 
-           result.overallClassification === 'studying';
+    if (result.segmentResults.length === 0) {
+      return false;
+    }
+    
+    const studyingSegments = this.countStudyingSegments(result.segmentResults);
+    const totalSegments = result.segmentResults.length;
+    const studyingProportion = studyingSegments / totalSegments;
+    
+    Logger.debug('Segment threshold analysis', {
+      studyingSegments,
+      totalSegments,
+      studyingProportion,
+      requiredProportion: this.config.segmentThresholdProportion,
+      meetsThreshold: studyingProportion >= this.config.segmentThresholdProportion
+    });
+    
+    return studyingProportion >= this.config.segmentThresholdProportion;
+  }
+  
+  private countStudyingSegments(segmentResults: SegmentClassificationResult[]): number {
+    return segmentResults.filter(result => 
+      result.confidence >= this.config.confidenceThreshold && 
+      result.classification !== 'idle'
+    ).length;
   }
   
   public getLastClassificationResult(): SegmentedClassificationResult | null {

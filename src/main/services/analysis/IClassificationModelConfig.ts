@@ -19,6 +19,8 @@ export type ClassificationModelConfig = {
   modelStoragePath: string;
   threshold: number;
   useFullModels?: boolean; // true for full models, false for quantized
+  model?: SupportedModel; // For backward compatibility
+  topic?: string; // Default topic for classification
 };
 
 export const MODEL_SPECIFICATIONS: Record<SupportedModel, ModelInfo> = {
@@ -53,10 +55,12 @@ export const MODEL_SPECIFICATIONS: Record<SupportedModel, ModelInfo> = {
 };
 
 export const DEFAULT_CLASSIFICATION_CONFIG: ClassificationModelConfig = {
-  activeModel: 'microsoft/deberta-v3-large',
-  fallbackModel: 'distilbert-base-uncased-mnli',
-  useLocalModels: true,
+  activeModel: 'facebook/bart-large-mnli',
+  fallbackModel: 'facebook/bart-large-mnli', // Use BART as fallback too
+  useLocalModels: false, // Now using HuggingFace directly
   modelStoragePath: './models',
   threshold: 0.5,
-  useFullModels: false // Default to quantized models for better performance
+  useFullModels: false, // Default to quantized models for better performance
+  model: 'facebook/bart-large-mnli', // Default model - BART classifier
+  topic: 'studying' // Default topic
 };

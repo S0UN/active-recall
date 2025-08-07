@@ -3,7 +3,7 @@ import { app } from 'electron';
 import { ILogger } from './ILogger';
 
 // Configuration for the decorator
-export interface LogExecutionOptions {
+export type LogExecutionOptions = {
   logArgs?: boolean;
   logResult?: boolean;
 }

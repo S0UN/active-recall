@@ -2,13 +2,13 @@
 
 ## System Design and Implementation Architecture
 
-### 📋 Documents in this folder:
+###  Documents in this folder:
 
 - **`FACTORY-DESIGN-AND-MODEL-SELECTION.md`** - Comprehensive guide to the extensible factory architecture implementing Strategy + Factory patterns for classification approaches
 - **`FINAL-IMPLEMENTATION.md`** - Production system architecture and key design decisions  
 - **`Orchestrator-Architecture.md`** - Orchestrator service design and state management system
 
-### 🏗️ Key Architectural Components
+###  Key Architectural Components
 
 **Classification System**:
 - **UniversalModelFactory** - Extensible factory supporting multiple AI strategies

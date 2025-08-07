@@ -263,11 +263,11 @@ topicService.setTopicConfig('computer science', 0.5);
 
 ```typescript
 // Specific topics work better than generic ones
-// ✅ Good
+//  Good
 topicService.setTopicConfig('machine learning algorithms', 0.5);
 topicService.setTopicConfig('organic chemistry reactions', 0.5);
 
-// ❌ Less effective
+//  Less effective
 topicService.setTopicConfig('studying', 0.5);
 topicService.setTopicConfig('learning', 0.5);
 ```

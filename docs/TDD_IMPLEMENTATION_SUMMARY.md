@@ -5,7 +5,7 @@
 ### Overview
 Successfully implemented all requested changes following Test-Driven Development (TDD) principles. All tests are passing and the system now supports topic-based classification with intelligent batching.
 
-## ✅ Completed Tasks
+##  Completed Tasks
 
 ### 1. **BatcherService Tests and Implementation** 
 - **Files Created**:
@@ -60,7 +60,7 @@ Successfully implemented all requested changes following Test-Driven Development
   - Only processes non-idle classifications
   - Maintains existing tab switching delay functionality
 
-## 📊 Test Results
+##  Test Results
 
 ### Test Coverage
 - **BatcherService**: 11 tests passing
@@ -85,7 +85,7 @@ Successfully implemented all requested changes following Test-Driven Development
    - Proper data flow from Orchestrator to BatcherService
    - Different topic scenarios (computer science, biology, mathematics)
 
-## 🗂️ JSON Batch Format
+## JSON Batch Format
 
 The implemented batching produces clean JSON without timestamps:
 
@@ -118,7 +118,7 @@ The implemented batching produces clean JSON without timestamps:
 }
 ```
 
-## 🏗️ Architecture Improvements
+##  Architecture Improvements
 
 ### Design Patterns Used
 - **Strategy Pattern**: Model path resolution (full vs quantized)
@@ -142,7 +142,7 @@ The implemented batching produces clean JSON without timestamps:
 - **Quantized**: `./models/` (existing)
 - **Full**: `./models-full/` (new support)
 
-## 🚀 Next Steps
+##  Next Steps
 
 1. **Model Testing**: Test with actual full models when available
 2. **Performance Monitoring**: Compare full vs quantized model performance

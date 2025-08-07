@@ -1,4 +1,5 @@
 import { injectable, inject } from "tsyringe";
+import { INativeScreenCapture } from "../INativeScreenCapture";
 import { IScreenCaptureService } from "../IScreenCaptureService";
 import { ScreenCaptureError } from '../../../errors/CustomErrors';
 import { ILogger } from '../../../utils/ILogger';
@@ -9,8 +10,9 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 @injectable()
-export class MacOSNativeCaptureService implements IScreenCaptureService {
+export class MacOSNativeCaptureService implements INativeScreenCapture, IScreenCaptureService {
   private readonly errorHandler: ErrorHandler;
+  private readonly platformName = 'macOS';
 
   constructor(
     @inject('LoggerService') private readonly logger: ILogger
@@ -147,5 +149,19 @@ export class MacOSNativeCaptureService implements IScreenCaptureService {
         clearTimeout(timeout);
       });
     });
+  }
+
+  /**
+   * Checks if this service is supported on the current platform
+   */
+  public isSupported(): boolean {
+    return process.platform === 'darwin';
+  }
+
+  /**
+   * Gets the platform name for this service
+   */
+  public getPlatformName(): string {
+    return this.platformName;
   }
 }

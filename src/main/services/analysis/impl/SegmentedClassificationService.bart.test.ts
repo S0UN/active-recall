@@ -95,20 +95,6 @@ describe('SegmentedClassificationService - BART Large Integration', () => {
       );
     });
 
-    it('should allow switching to embedding strategy', async () => {
-      await service.updateConfiguration({
-        strategyType: 'embedding',
-        modelName: 'all-MiniLM-L6-v2'
-      });
-
-      await service.classify('test input');
-      
-      expect(mockModelFactory.createStrategy).toHaveBeenCalledWith(
-        'embedding',
-        'all-MiniLM-L6-v2',
-        expect.any(Object)
-      );
-    });
 
     it('should allow custom topic configuration', async () => {
       await service.updateConfiguration({
@@ -128,24 +114,6 @@ describe('SegmentedClassificationService - BART Large Integration', () => {
       );
     });
 
-    it('should allow hybrid strategy configuration', async () => {
-      await service.updateConfiguration({
-        strategyType: 'hybrid',
-        modelName: 'hybrid-default',
-        topic: 'biology'
-      });
-
-      await service.classify('test input');
-      
-      expect(mockModelFactory.createStrategy).toHaveBeenCalledWith(
-        'hybrid',
-        'hybrid-default',
-        {
-          topic: 'biology',
-          threshold: 0.5
-        }
-      );
-    });
   });
 
   describe('BART Large specific features', () => {

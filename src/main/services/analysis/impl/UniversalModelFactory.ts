@@ -2,8 +2,6 @@ import { injectable } from 'tsyringe';
 import { ClassificationStrategy, StrategyMetadata, ClassificationConfig } from '../IClassificationStrategy';
 import { IClassificationService } from '../IClassificationService';
 import { TopicClassificationService } from './TopicClassificationService';
-import { EmbeddingClassificationService, EmbeddingModel, EMBEDDING_MODEL_SPECS } from './EmbeddingClassificationService';
-import { HybridClassificationService } from './HybridClassificationService';
 import { SupportedModel, MODEL_SPECIFICATIONS, DEFAULT_CLASSIFICATION_CONFIG } from '../IClassificationModelConfig';
 import { IModelPathResolver, QuantizedModelPathResolver, FullModelPathResolver } from '../IModelPathResolver';
 import { StrategyEvaluator } from './StrategyEvaluator';
@@ -12,7 +10,7 @@ import Logger from 'electron-log';
 import * as fs from 'fs';
 import * as path from 'path';
 
-export type StrategyType = 'zero-shot' | 'embedding' | 'hybrid' | 'auto';
+export type StrategyType = 'zero-shot' | 'auto';
 
 
 type StrategyFactory = {
@@ -54,8 +52,6 @@ export class UniversalModelFactory {
 
   private registerAllStrategies(): void {
     this.registerZeroShotStrategy();
-    this.registerEmbeddingStrategy();
-    this.registerHybridStrategy();
   }
 
   private configureEvaluator(): void {
@@ -83,8 +79,8 @@ export class UniversalModelFactory {
     model: string
   ): Promise<{ type: StrategyType; model: string }> {
     if (this.isAutoStrategy(strategyType)) {
-      // Default to zero-shot with roberta-large-mnli when auto is selected
-      return { type: 'zero-shot', model: 'roberta-large-mnli' };
+      // Default to zero-shot with BART when auto is selected
+      return { type: 'zero-shot', model: 'facebook/bart-large-mnli' };
     }
     return { type: strategyType, model };
   }
@@ -183,13 +179,13 @@ export class UniversalModelFactory {
 
   // Creates the best available classifier using default zero-shot
   public async createBestAvailableClassifier(): Promise<IClassificationService> {
-    const strategy = await this.createStrategy('zero-shot', 'roberta-large-mnli');
+    const strategy = await this.createStrategy('zero-shot', 'facebook/bart-large-mnli');
     return this.wrapStrategy(strategy);
   }
 
   // Legacy compatibility - creates the best available strategy
   public async createClassifier(
-    modelName?: SupportedModel | EmbeddingModel
+    modelName?: SupportedModel
   ): Promise<IClassificationService> {
     if (modelName && modelName in MODEL_SPECIFICATIONS) {
       // Legacy zero-shot model requested
@@ -197,14 +193,9 @@ export class UniversalModelFactory {
       return this.wrapStrategy(strategy);
     }
 
-    if (modelName && modelName in EMBEDDING_MODEL_SPECS) {
-      // Embedding model requested
-      const strategy = await this.createStrategy('embedding', modelName);
-      return this.wrapStrategy(strategy);
-    }
 
-    // Default to zero-shot with roberta-large-mnli
-    const strategy = await this.createStrategy('zero-shot', 'roberta-large-mnli');
+    // Default to zero-shot with BART
+    const strategy = await this.createStrategy('zero-shot', 'facebook/bart-large-mnli');
     return this.wrapStrategy(strategy);
   }
 
@@ -263,111 +254,7 @@ export class UniversalModelFactory {
     };
   }
 
-  private registerEmbeddingStrategy(): void {
-    this.strategies.set('embedding', {
-      create: async (model: string) => {
-        return await this.createEmbeddingService(model);
-      },
-      getAvailableModels: async () => {
-        return await this.discoverAvailableEmbeddingModels();
-      },
-      getMetadata: (model: string) => this.createEmbeddingMetadata(model)
-    });
-  }
 
-  private async createEmbeddingService(model: string): Promise<ClassificationStrategy> {
-    const service = new EmbeddingClassificationService(model as EmbeddingModel);
-    await service.init();
-    return this.wrapAsStrategy(service, 'embedding');
-  }
-
-  private async discoverAvailableEmbeddingModels(): Promise<string[]> {
-    return ['all-MiniLM-L6-v2']; 
-  }
-
-  private createEmbeddingMetadata(model: string): StrategyMetadata {
-    return {
-      name: `Embedding Similarity (${model})`,
-      type: 'embedding',
-      version: '1.0.0',
-      description: 'Uses semantic embeddings and cosine similarity for topic matching',
-      strengths: ['Fast inference', 'Lower memory usage', 'Direct similarity scores'],
-      weaknesses: ['May miss nuanced context', 'Requires good embeddings'],
-      recommendedFor: ['Fast inference', 'Resource-constrained environments'],
-      performance: {
-        accuracy: 0.78,
-        speed: 'fast',
-        memoryUsage: 'medium',
-        cpuUsage: 'medium'
-      },
-      requirements: {
-        models: [model],
-        minRam: '1GB',
-        supportedLanguages: ['en']
-      }
-    };
-  }
-
-  private registerHybridStrategy(): void {
-    this.strategies.set('hybrid', {
-      create: async () => {
-        return await this.createHybridService();
-      },
-      getAvailableModels: async () => {
-        return await this.discoverAvailableHybridModels();
-      },
-      getMetadata: () => this.createHybridMetadata()
-    });
-  }
-
-  private async createHybridService(): Promise<ClassificationStrategy> {
-    const service = new HybridClassificationService();
-    await service.init();
-    return this.wrapAsStrategy(service, 'hybrid');
-  }
-
-  private async discoverAvailableHybridModels(): Promise<string[]> {
-    const hasZeroShotModels = await this.hasAvailableZeroShotModels();
-    const hasEmbeddingModels = await this.hasAvailableEmbeddingModels();
-    
-    if (hasZeroShotModels && hasEmbeddingModels) {
-      return ['hybrid-default'];
-    }
-    return [];
-  }
-
-  private async hasAvailableZeroShotModels(): Promise<boolean> {
-    const zeroShotModels = await this.strategies.get('zero-shot')!.getAvailableModels();
-    return zeroShotModels.length > 0;
-  }
-
-  private async hasAvailableEmbeddingModels(): Promise<boolean> {
-    const embeddingModels = await this.strategies.get('embedding')!.getAvailableModels();
-    return embeddingModels.length > 0;
-  }
-
-  private createHybridMetadata(): StrategyMetadata {
-    return {
-      name: 'Hybrid Classification',
-      type: 'hybrid',
-      version: '1.0.0',
-      description: 'Combines keyword matching, embeddings, and zero-shot classification',
-      strengths: ['Highest accuracy', 'Robust to edge cases', 'Detailed scoring'],
-      weaknesses: ['Slowest inference', 'Highest memory usage', 'Complex configuration'],
-      recommendedFor: ['Maximum accuracy', 'Production systems with complex requirements'],
-      performance: {
-        accuracy: 0.90,
-        speed: 'slow',
-        memoryUsage: 'high',
-        cpuUsage: 'high'
-      },
-      requirements: {
-        models: ['embedding-model', 'zero-shot-model'],
-        minRam: '3GB',
-        supportedLanguages: ['en']
-      }
-    };
-  }
 
 
   private async checkModelAvailability(modelPath: string): Promise<boolean> {

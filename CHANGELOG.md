@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2025-08-07
+
+### Added
+- **Enhanced Test Readability**: Comprehensive refactoring of test suites with helper functions and improved readability
+  - Created test data factories for consistent, readable test setup across all test files
+  - Added expectation helpers for cleaner assertions and better test maintainability
+  - Implemented sample entry generators for common test scenarios (programming sessions, cross-window/topic transitions)
+  - Refactored BatcherService tests with intuitive helper functions and high-level readability
+  - Enhanced TopicClassificationService tests with mock configuration helpers and assertion utilities
+  - Applied consistent readable test patterns following clean code principles
+
+- **Configurable Segment Classification Threshold**: Added proportional threshold for segment-based study detection
+  - Implemented `segmentThresholdProportion` configuration parameter (default: 40% of segments must be studying)
+  - Added environment variable support via `SEGMENT_THRESHOLD_PROPORTION` in .env file
+  - Enhanced SegmentedClassificationService with detailed logging for threshold analysis
+  - Created comprehensive test suite for segment threshold functionality with edge case coverage
+
+- **Environment Variable Configuration Expansion**: Extended configurable parameters
+  - Added `BATCH_FLUSH_THRESHOLD` environment variable for BatcherService auto-flush behavior
+  - Added `SEGMENT_THRESHOLD_PROPORTION` for configurable study detection sensitivity
+  - Enhanced validation and fallback handling for all environment variables
+
+### Changed
+- **Documentation Cleanup and Standardization**: Removed emojis and improved professional presentation
+  - Cleaned all emojis from documentation across README.md, docs/ directory, and architecture files
+  - Removed redundant documentation files (TODO.md, SESSION_CONTEXT.md, duplicate changelogs)
+  - Maintained all technical content while improving professional appearance
+  - Standardized documentation structure and formatting throughout the project
+
+- **Test Architecture Improvements**: Applied clean code principles to test design
+  - Implemented helper function patterns for better test maintainability
+  - Created reusable test configuration utilities across multiple test files  
+  - Enhanced test readability at high levels with descriptive helper methods
+  - Improved test organization with clear separation of setup, execution, and assertion
+
+- **Segmented Classification Logic Enhancement**: Improved accuracy through proportional analysis
+  - Changed from single highest-confidence segment to proportional segment analysis
+  - Enhanced threshold logic to require percentage of segments (not just one) to classify as studying
+  - Added comprehensive logging for debugging threshold decisions
+  - Improved overall classification accuracy through more robust segment analysis
+
+### Fixed
+- **BatcherService Configuration**: Enhanced auto-flush functionality with environment variable support
+  - Fixed hard-coded flush threshold by making it configurable via environment variables
+  - Added proper validation and logging for threshold configuration
+  - Improved error handling for invalid environment variable values
+
+### Removed
+- **Redundant Documentation**: Cleaned up unnecessary and duplicate documentation files
+  - Removed docs/development/TODO.md (near-empty file)
+  - Removed docs/SESSION_CONTEXT.md (outdated session context)
+  - Removed docs/CHANGES.md (redundant with CHANGE.md)
+  - Removed docs/CHANGELOG.md (duplicate of root CHANGELOG.md)
+
 ## [Unreleased] - 2025-08-04
 
 ### Added

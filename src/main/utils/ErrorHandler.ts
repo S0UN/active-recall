@@ -1,7 +1,7 @@
 import { ILogger } from './ILogger';
 import { DomainError } from '../errors/CustomErrors';
 
-export interface ErrorContext {
+export type ErrorContext = {
   traceId?: string;
   userId?: string;
   operation?: string;

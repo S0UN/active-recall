@@ -1,12 +1,10 @@
 import { injectable } from 'tsyringe';
 import { IClassificationService, ClassificationResult } from '../IClassificationService';
-import { pipeline, env } from '@xenova/transformers';
-import { ClassificationError, ModelInitializationError, ModelNotFoundError, ModelInferenceError } from '../../../errors/CustomErrors';
+import { ClassificationError, ModelInitializationError, ModelInferenceError } from '../../../errors/CustomErrors';
 import { z } from 'zod';
 import Logger from 'electron-log';
 import { SupportedModel, ModelInfo, MODEL_SPECIFICATIONS, DEFAULT_CLASSIFICATION_CONFIG } from '../IClassificationModelConfig';
-import { IModelPathResolver, QuantizedModelPathResolver, FullModelPathResolver } from '../IModelPathResolver';
-import path from 'path';
+import { HuggingFaceBridge, ClassificationRequest } from './HuggingFaceBridge';
 
 export type ModelInfoWithName = ModelInfo & {
   modelName: SupportedModel;
@@ -45,84 +43,99 @@ export const RECOMMENDED_THRESHOLDS: Record<SupportedModel, number> = {
 
 @injectable()
 export class TopicClassificationService implements IClassificationService {
-  private classifierPromise?: Promise<any>;
+  private huggingFaceBridge: HuggingFaceBridge | null = null;
   private readonly modelInfo: ModelInfo;
   private readonly topics: Set<string> = new Set();
   private threshold: number;
-  private needsReinitialization: boolean = false;
-  private readonly modelPathResolver: IModelPathResolver;
+  private needsReinitialization = false;
+  private initializationPromise: Promise<void> | null = null;
 
   constructor(
-    private readonly modelName: SupportedModel,
-    useFullModels?: boolean
+    private readonly modelName: SupportedModel = 'facebook/bart-large-mnli'
   ) {
-    this.modelInfo = MODEL_SPECIFICATIONS[modelName];
-    this.threshold = RECOMMENDED_THRESHOLDS[modelName];
-    this.modelPathResolver = this.createModelPathResolver(useFullModels);
+    this.modelInfo = this.getModelSpecification(modelName);
+    this.threshold = this.getDefaultThreshold(modelName);
+    this.setupDefaultTopics();
   }
 
-  private createModelPathResolver(useFullModels?: boolean): IModelPathResolver {
-    const envValue = process.env.USE_FULL_MODELS === 'true';
-    const configValue = DEFAULT_CLASSIFICATION_CONFIG.useFullModels || false;
-    const shouldUseFullModels = useFullModels ?? envValue ?? configValue;
-    
-    return shouldUseFullModels ? new FullModelPathResolver() : new QuantizedModelPathResolver();
+  private getModelSpecification(modelName: SupportedModel): ModelInfo {
+    const spec = MODEL_SPECIFICATIONS[modelName];
+    if (!spec) {
+      throw new ModelInitializationError(`Unknown model: ${modelName}`);
+    }
+    return spec;
+  }
+
+  private getDefaultThreshold(modelName: SupportedModel): number {
+    return RECOMMENDED_THRESHOLDS[modelName] || DEFAULT_CLASSIFICATION_CONFIG.threshold;
+  }
+
+  private setupDefaultTopics(): void {
+    const defaultTopic = DEFAULT_CLASSIFICATION_CONFIG.topic;
+    if (defaultTopic) {
+      this.topics.add(defaultTopic);
+    }
   }
 
   public async init(): Promise<void> {
-    this.setupOfflineEnvironment();
-    await this.initializeClassificationPipeline();
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    this.initializationPromise = this.initializeClassifier();
+    return this.initializationPromise;
   }
 
-  private setupOfflineEnvironment(): void {
-    // Use local models for offline functionality
-    env.allowRemoteModels = false;
-    // Set base path for local models
-    const modelBasePath = this.modelPathResolver.getVariant() === 'full' ? 'models-full' : 'models';
-    env.localModelPath = path.resolve(process.cwd(), modelBasePath);
-  }
-
-  private async initializeClassificationPipeline(): Promise<void> {
-    const localModelPath = this.modelPathResolver.resolvePath(this.modelName);
-    const modelVariant = this.modelPathResolver.getVariant();
-    
-    Logger.info(`Initializing TopicClassificationService:`, {
-      modelName: this.modelName,
-      modelPath: localModelPath,
-      modelVariant: modelVariant,
-      isFullModel: modelVariant === 'full',
-      USE_FULL_MODELS: process.env.USE_FULL_MODELS
-    });
-    
+  private async initializeClassifier(): Promise<void> {
     try {
-      this.classifierPromise = pipeline('zero-shot-classification', localModelPath);
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
+      Logger.info(`Initializing HuggingFace bridge for ${this.modelName}`);
       
-      if (errorMessage.includes('file was not found locally')) {
-        throw new ModelNotFoundError(
-          `Model files not found for ${this.modelName} at ${localModelPath}. Ensure model files are downloaded.`,
-          error instanceof Error ? error : undefined
-        );
-      }
+      // Create and initialize the HuggingFace bridge
+      this.huggingFaceBridge = new HuggingFaceBridge(this.modelName);
+      await this.huggingFaceBridge.initialize();
       
+      Logger.info(`Successfully initialized HuggingFace bridge for ${this.modelName}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Logger.error(`Failed to initialize HuggingFace bridge: ${errorMessage}`);
       throw new ModelInitializationError(
-        `Failed to initialize classification pipeline for model ${this.modelName}: ${errorMessage}`,
+        `Failed to initialize model ${this.modelName}: ${errorMessage}`,
         error instanceof Error ? error : undefined
       );
     }
   }
 
-  public setTopicConfig(topic: string, threshold?: number): void {
-    this.clearAllTopics();
-    this.addTopicToCollection(topic);
-    this.updateThreshold(threshold);
+  private async reinitializeClassifier(): Promise<void> {
+    // Shutdown existing bridge if any
+    if (this.huggingFaceBridge) {
+      await this.huggingFaceBridge.shutdown();
+      this.huggingFaceBridge = null;
+    }
+    
+    // Reset initialization promise
+    this.initializationPromise = null;
+    
+    // Reinitialize
+    await this.init();
+  }
+
+  public setTopicConfig(topic?: string, threshold?: number): void {
+    if (topic !== undefined) {
+      this.updateTopics(topic);
+    }
+    
+    if (threshold !== undefined) {
+      this.updateThreshold(threshold);
+    }
+    
     this.logConfigurationChange();
   }
 
   public getTopicConfig(): TopicClassificationConfig | undefined {
     const primaryTopic = this.getPrimaryTopic();
-    if (!primaryTopic) return undefined;
+    if (!primaryTopic) {
+      return undefined;
+    }
     
     return {
       topic: primaryTopic,
@@ -130,13 +143,9 @@ export class TopicClassificationService implements IClassificationService {
     };
   }
 
-  private clearAllTopics(): void {
-    this.topics.clear();
-    this.markForReinitialization();
-  }
-
-  private addTopicToCollection(topic: string): void {
+  private updateTopics(topic: string): void {
     const validatedTopic = this.validateAndCleanTopic(topic);
+    this.topics.clear();
     this.topics.add(validatedTopic);
     this.markForReinitialization();
   }
@@ -190,82 +199,93 @@ export class TopicClassificationService implements IClassificationService {
     return result;
   }
 
+  private validateAndCleanText(text: unknown): string {
+    if (typeof text !== 'string') {
+      throw new ClassificationError('Text input must be a string');
+    }
+    return TextSchema.parse(text);
+  }
+
+  private ensureServiceIsReady(): void {
+    if (!this.huggingFaceBridge || !this.huggingFaceBridge.ready) {
+      throw new ModelInitializationError('Classification service not initialized');
+    }
+  }
+
   private hasNoTopics(): boolean {
     return this.topics.size === 0;
   }
 
   private createIdleResult(): ClassificationResult {
-    return { classification: 'idle', confidence: 0 };
+    return {
+      classification: 'idle',
+      confidence: 1.0
+    };
   }
 
   private async scoreAgainstAllTopics(text: string): Promise<Map<string, number>> {
     const scores = new Map<string, number>();
+    const topicArray = Array.from(this.topics);
     
-    for (const topic of this.topics) {
-      const score = await this.scoreTextForTopic(text, topic);
-      scores.set(topic, score);
+    // Prepare labels for classification
+    const labels = topicArray.concat(['idle']);
+    
+    try {
+      // Use HuggingFace bridge for classification
+      const request: ClassificationRequest = {
+        text: text,
+        labels: labels,
+        multiLabel: false
+      };
+      
+      const response = await this.huggingFaceBridge!.classify(request);
+      
+      // Map the response to our score format
+      for (let i = 0; i < response.labels.length; i++) {
+        const label = response.labels[i];
+        const score = response.scores[i];
+        
+        // Only track scores for our topics (not 'idle')
+        if (this.topics.has(label)) {
+          scores.set(label, score);
+        }
+      }
+      
+      return scores;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown inference error';
+      
+      throw new ModelInferenceError(
+        `Classification inference failed for model ${this.modelName}: ${errorMessage}`,
+        error instanceof Error ? error : undefined
+      );
     }
-    
-    return scores;
-  }
-
-  private async scoreTextForTopic(text: string, topic: string): Promise<number> {
-    const topicLabel = this.generateLabel(topic);
-    return await this.performZeroShotClassification(text, topicLabel);
   }
 
   private findBestMatchingTopic(topicScores: Map<string, number>): { topic: string; confidence: number } {
-    let bestTopic = '';
-    let highestConfidence = 0;
-    
+    let bestTopic = 'idle';
+    let bestConfidence = 0;
+
     for (const [topic, confidence] of topicScores) {
-      if (confidence > highestConfidence) {
-        highestConfidence = confidence;
+      if (confidence > bestConfidence) {
         bestTopic = topic;
+        bestConfidence = confidence;
       }
     }
-    
-    return { topic: bestTopic, confidence: highestConfidence };
+
+    return { topic: bestTopic, confidence: bestConfidence };
   }
 
-  private createClassificationResult(
-    bestMatch: { topic: string; confidence: number }
-  ): ClassificationResult {
-    const classification = this.determineClassificationFromConfidence(bestMatch.topic, bestMatch.confidence);
+  private createClassificationResult(bestMatch: { topic: string; confidence: number }): ClassificationResult {
+    const classification = this.determineClassificationFromConfidence(
+      bestMatch.topic, 
+      bestMatch.confidence
+    );
+    
     return {
       classification,
       confidence: bestMatch.confidence
     };
-  }
-
-  private validateAndCleanText(text: unknown): string {
-    return TextSchema.parse(text);
-  }
-
-  private async performZeroShotClassification(text: string, topicLabel: string): Promise<number> {
-    try {
-      const classifier = await this.classifierPromise!;
-      
-      const result = await classifier(text, [topicLabel], {
-        multi_label: false
-      });
-      
-      return result.scores[0];
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown inference error';
-      
-      // Rethrow with context - fail fast!
-      if (error instanceof ModelNotFoundError || error instanceof ModelInitializationError) {
-        // These are initialization errors - bubble them up
-        throw error;
-      }
-      
-      // This is an inference error
-      throw new ModelInferenceError(
-        `Classification inference failed for model ${this.modelName} with topic '${topicLabel}': ${errorMessage}`,
-        error instanceof Error ? error : undefined
-      );
-    }
   }
 
   private determineClassificationFromConfidence(topic: string, confidence: number): string {
@@ -277,16 +297,16 @@ export class TopicClassificationService implements IClassificationService {
   }
 
   private logClassificationResult(result: ClassificationResult, text: string): void {
-    Logger.debug(`Classification result:`, {
-      topics: Array.from(this.topics),
+    Logger.debug('Classification result:', {
+      text: this.truncateText(text, 100),
+      classification: result.classification,
       confidence: result.confidence,
       threshold: this.threshold,
-      classification: result.classification,
-      textPreview: this.createTextPreview(text)
+      model: this.modelName
     });
   }
 
-  private createTextPreview(text: string, maxLength: number = 50): string {
+  private truncateText(text: string, maxLength: number): string {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   }
 
@@ -312,7 +332,7 @@ export class TopicClassificationService implements IClassificationService {
   }
 
   public getLabels(): string[] {
-    return Array.from(this.topics).map(topic => this.generateLabel(topic));
+    return Array.from(this.topics);
   }
 
   private validateAndCleanLabel(label: unknown): string {
@@ -337,44 +357,19 @@ export class TopicClassificationService implements IClassificationService {
     }
   }
 
-  private async reinitializeClassifier(): Promise<void> {
-    Logger.info('Reinitializing classifier due to label changes');
-    await this.init();
-  }
-
   private logLabelAdded(label: string): void {
-    Logger.info(`Label added: ${label}. Total labels: ${this.topics.size}`);
+    Logger.info(`Label added to classification service: ${label}`);
   }
 
   private logLabelRemoved(label: string): void {
-    Logger.info(`Label removed: ${label}. Total labels: ${this.topics.size}`);
+    Logger.info(`Label removed from classification service: ${label}`);
   }
 
-  private generateLabel(topic: string): string {
-    // Direct labels work better than "This text is about X" format
-    // Testing shows 72% accuracy vs 24% with prefix
-    return topic;
-  }
-
-  private ensureServiceIsReady(): void {
-    this.ensureInitialized();
-    this.ensureConfigured();
-  }
-
-  private ensureInitialized(): void {
-    if (!this.classifierPromise) {
-      throw new ClassificationError(
-        "TopicClassificationService must be initialized before use. Call init() first."
-      );
+  // Cleanup method
+  public async shutdown(): Promise<void> {
+    if (this.huggingFaceBridge) {
+      await this.huggingFaceBridge.shutdown();
+      this.huggingFaceBridge = null;
     }
   }
-
-  private ensureConfigured(): void {
-    if (this.hasNoTopics()) {
-      throw new ClassificationError(
-        "At least one topic must be configured before classification. Call addLabel() or setTopicConfig() first."
-      );
-    }
-  }
-
 }

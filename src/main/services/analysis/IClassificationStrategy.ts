@@ -6,7 +6,7 @@ export type ClassificationConfig = {
 
 export type StrategyMetadata = {
   name: string;
-  type: 'zero-shot' | 'embedding' | 'hybrid' | 'keyword' | 'ensemble';
+  type: 'zero-shot' | 'keyword' | 'ensemble';
   version: string;
   description: string;
   strengths: string[];

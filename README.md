@@ -6,16 +6,16 @@
 
 Active Recall is an intelligent study tracking application that uses advanced AI classification to automatically detect when users are studying specific topics. By analyzing OCR'd text from screen content, it provides accurate, real-time study session tracking across multiple academic domains.
 
-## 🎯 Key Features
+## Key Features
 
-- **🧠 Topic-Based Classification** - Accurately detects study content for user-specified topics
-- **📚 Multi-Domain Support** - Chemistry, Programming, Machine Learning, Biology, and more
-- **⚡ Real-Time Processing** - <200ms response time suitable for live study tracking
-- **🔍 OCR Content Handling** - Processes realistic textbook and research paper content
-- **🎛️ Multi-Strategy AI** - Automatic selection between zero-shot, embedding, and hybrid approaches
-- **📊 High Accuracy** - 85-99% confidence on real academic content
+- **Topic-Based Classification** - Accurately detects study content for user-specified topics
+- **Multi-Domain Support** - Chemistry, Programming, Machine Learning, Biology, and more
+- **Real-Time Processing** - <200ms response time suitable for live study tracking
+- **OCR Content Handling** - Processes realistic textbook and research paper content
+- **Multi-Strategy AI** - Automatic selection between zero-shot, embedding, and hybrid approaches
+- **High Accuracy** - 85-99% confidence on real academic content
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Install dependencies
@@ -28,7 +28,7 @@ npm test
 npm run dev
 ```
 
-## 📖 How It Works
+## How It Works
 
 1. **Screen Capture** - Monitors user's screen content through OCR
 2. **Text Processing** - Segments and preprocesses captured text
@@ -55,7 +55,7 @@ npm run dev
 }
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -75,7 +75,7 @@ npm run dev
 └────────┘              └──────────┘              └─────────┘
 ```
 
-## 📊 Performance Metrics
+## Performance Metrics
 
 ### Model Performance
 | Model | Accuracy | Latency | Memory | Best For |
@@ -90,7 +90,7 @@ npm run dev
 - **ML Research Papers**: 90%+ confidence on technical content
 - **OCR Artifact Handling**: No accuracy degradation with realistic OCR errors
 
-## 🧪 Testing
+## Testing
 
 We maintain comprehensive test coverage with real AI models:
 
@@ -110,7 +110,7 @@ npm test -- TopicClassificationService.realai.test.ts
 npm test -- SegmentedClassificationService.realocr.test.ts
 ```
 
-## 📚 Documentation
+## Documentation
 
 Complete documentation is available in the [`docs/`](./docs/) folder:
 
@@ -119,7 +119,7 @@ Complete documentation is available in the [`docs/`](./docs/) folder:
 - **[Research Findings](./docs/research/SINGLE-LABEL-ANALYSIS.md)** - Classification research and validation
 - **[Change Log](./docs/CHANGE.md)** - Comprehensive development progress
 
-## 🎓 Supported Study Topics
+## Supported Study Topics
 
 The system works across diverse academic domains:
 
@@ -129,7 +129,7 @@ The system works across diverse academic domains:
 - **Professional**: Business, Law, Medicine
 - **Custom Topics**: User-defined subjects with automatic adaptation
 
-## 🔬 Research & Development
+## Research & Development
 
 This project represents significant research in topic-based text classification:
 
@@ -145,7 +145,7 @@ This project represents significant research in topic-based text classification:
 - Cross-domain topic detection validation
 - Performance optimization research
 
-## 🤝 Contributing
+## Contributing
 
 This project follows strict TDD practices and clean architecture principles:
 
@@ -156,11 +156,11 @@ This project follows strict TDD practices and clean architecture principles:
 
 See [`docs/development/CLAUDE.md`](./docs/development/CLAUDE.md) for complete development guidelines.
 
-## 📄 License
+## License
 
 [Add your license information here]
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - HuggingFace Transformers.js for offline AI model support
 - RoBERTa, DistilBERT, BART, and DeBERTa model contributors

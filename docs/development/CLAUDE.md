@@ -206,7 +206,7 @@ type Customer = z.infer<typeof CustomerSchema>;
 **CRITICAL**: Tests must use real schemas and types from the main project, not redefine their own.
 
 ```typescript
-// ❌ WRONG - Defining schemas in test files
+//  WRONG - Defining schemas in test files
 const ProjectSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
@@ -216,7 +216,7 @@ const ProjectSchema = z.object({
   updatedAt: z.coerce.date(),
 });
 
-// ✅ CORRECT - Import schemas from the shared schema package
+//  CORRECT - Import schemas from the shared schema package
 import { ProjectSchema, type Project } from "@your-org/schemas";
 ```
 
@@ -235,7 +235,7 @@ import { ProjectSchema, type Project } from "@your-org/schemas";
 - Mock data factories should use the real types derived from real schemas
 
 ```typescript
-// ✅ CORRECT - Test factories using real schemas
+//  CORRECT - Test factories using real schemas
 import { ProjectSchema, type Project } from "@your-org/schemas";
 
 const getMockProject = (overrides?: Partial<Project>): Project => {
@@ -1350,12 +1350,12 @@ vi.mock('@xenova/transformers', () => ({
 ```
 
 #### Benefits Achieved
-- ✅ Real AI testing without network dependencies
-- ✅ Consistent results across all environments
-- ✅ Fast execution (no download delays)
-- ✅ No authentication or rate limiting issues
-- ✅ Works reliably in CI/CD environments
-- ✅ Same approach can be used for other HuggingFace models
+-  Real AI testing without network dependencies
+-  Consistent results across all environments
+-  Fast execution (no download delays)
+-  No authentication or rate limiting issues
+-  Works reliably in CI/CD environments
+-  Same approach can be used for other HuggingFace models
 
 #### Model Storage Structure
 ```
