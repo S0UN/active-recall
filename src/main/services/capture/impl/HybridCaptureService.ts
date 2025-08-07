@@ -6,6 +6,12 @@ import { ErrorHandler } from '../../../utils/ErrorHandler';
 import { ElectronCaptureService } from './ElectronCaptureService';
 import { MacOSNativeCaptureService } from './MacOSNativeCaptureService';
 
+// Make a native screen capture interface
+// Make all the OS systems implemetnt this
+// HybridCaptureService will try Electron first, then native if Electron fails
+// We will have a create native screen capture service in this class that 
+// will create it based on the OS. We can have a create method that does this
+
 @injectable()
 export class HybridCaptureService implements IScreenCaptureService {
   private electronService: ElectronCaptureService;

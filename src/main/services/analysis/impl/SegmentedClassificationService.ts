@@ -19,6 +19,9 @@ export type SegmentedClassificationConfig = {
   confidenceThreshold?: number;
 }
 
+
+// should look into pruning so we dont have to do unecessary classifications, 
+// Wont do for now as the information might be useful for debugging later on
 @injectable()
 export class SegmentedClassificationService implements ISegmentedClassifier, IClassificationService {
   private static readonly DEFAULT_TOPIC = 'Computer Science';
@@ -124,6 +127,7 @@ export class SegmentedClassificationService implements ISegmentedClassifier, ICl
     );
   }
 
+  // Maybe should implement pruning here
   private async classifyEachSegment(
     segments: TextSegment[], 
     classifier: ClassificationStrategy
