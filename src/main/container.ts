@@ -6,7 +6,7 @@ import { ILogger } from './utils/ILogger';
 import { LoggerService } from './utils/LoggerService';
 
 import { IPollingConfig } from './configs/IPollingConfig';
-import { ConfigService } from './configs/ConfigService';
+import { PollingConfigService } from './configs/PollingConfigService';
 
 import { ICache } from './utils/ICache';
 import { WindowCache } from './utils/WindowCache';
@@ -46,7 +46,7 @@ import { IPoller } from './services/polling/IPoller';
 container.registerSingleton<ILogger>('LoggerService', LoggerService);
 
 // 2) Configuration
-container.registerSingleton<IPollingConfig>('PollingConfig', ConfigService);
+container.registerSingleton<IPollingConfig>('PollingConfig', PollingConfigService);
 
 // 3) Cache
 container.registerSingleton<

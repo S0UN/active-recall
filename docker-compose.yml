@@ -1,0 +1,115 @@
+# Docker Compose for Concept Organizer Development Environment
+# 
+# This file provides:
+# - Qdrant vector database for embeddings and search
+# - Redis for caching and session storage (optional)
+# - Development configuration optimized for local work
+#
+# Usage:
+#   docker-compose up -d      # Start all services
+#   docker-compose down       # Stop all services
+#   docker-compose logs -f    # View logs
+
+version: '3.8'
+
+services:
+  # =============================================================================
+  # QDRANT VECTOR DATABASE
+  # =============================================================================
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: concept-organizer-qdrant
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      # Development-optimized settings
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__LOG_LEVEL=INFO
+      - QDRANT__STORAGE__OPTIMIZERS__DEFAULT_SEGMENT_NUMBER=2
+      - QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD=10000
+      # Enable CORS for development
+      - QDRANT__SERVICE__ENABLE_CORS=true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - concept-organizer
+
+  # =============================================================================
+  # REDIS FOR CACHING (OPTIONAL)
+  # =============================================================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: concept-organizer-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: >
+      redis-server 
+      --appendonly yes 
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - concept-organizer
+
+  # =============================================================================
+  # QDRANT ADMIN UI (OPTIONAL)
+  # =============================================================================
+  qdrant-ui:
+    image: qdrant/qdrant:v1.7.4
+    container_name: concept-organizer-qdrant-ui
+    ports:
+      - "6335:6333"
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__WEB_UI__ENABLED=true
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    profiles:
+      - ui  # Only start with: docker-compose --profile ui up
+    networks:
+      - concept-organizer
+
+# =============================================================================
+# VOLUMES
+# =============================================================================
+volumes:
+  qdrant_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/qdrant
+  
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none  
+      o: bind
+      device: ./data/redis
+
+# =============================================================================
+# NETWORKS
+# =============================================================================
+networks:
+  concept-organizer:
+    driver: bridge
+    name: concept-organizer-network
