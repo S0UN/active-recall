@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SegmentedClassificationService, SegmentedClassificationConfig } from './SegmentedClassificationService';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { SegmentedClassificationService } from './SegmentedClassificationService';
 import { ITextSegmenter, TextSegment } from '../../preprocessing/ITextSegmenter';
 import { ITextPreprocessor } from '../../preprocessing/ITextPreprocessor';
 import { UniversalModelFactory } from './UniversalModelFactory';

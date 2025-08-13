@@ -2,7 +2,7 @@
 import { injectable, inject } from "tsyringe";
 import { BasePoller } from "./BasePoller";
 import { IPollingSystem } from "../IPollingSystem";
-import { ConfigService } from "../../../configs/ConfigService";
+import { PollingConfigService } from "../../../configs/PollingConfigService";
 import { IPoller } from "../IPoller";
 
 @injectable()
@@ -11,7 +11,7 @@ export class IdleRevalidationPoller extends BasePoller implements IPoller {
 
   constructor(
     @inject("PollingSystem")   polling: IPollingSystem,
-    @inject("PollingConfig")    config: ConfigService
+    @inject("PollingConfig")    config: PollingConfigService
   ) {
     super(
       polling,

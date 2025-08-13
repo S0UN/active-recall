@@ -1,535 +1,384 @@
 /**
- * Core data schemas for the Concept Organizer system using Zod for runtime validation.
+ * Data contracts and schemas for the Concept Organizer
  * 
- * This file defines:
- * - All input/output data structures
- * - Validation rules and constraints 
- * - Type inference for TypeScript
- * - Schema composition patterns
+ * This file defines all data structures used throughout the application.
+ * We use Zod for runtime validation and TypeScript type inference.
  * 
- * Design principles:
- * - Schema-first development: define schemas before implementations
- * - Runtime validation at system boundaries
- * - Deterministic IDs for idempotency
- * - Immutable data structures
+ * Key principles:
+ * - Single source of truth for data structures
+ * - Runtime validation at boundaries
+ * - Type safety throughout the application
+ * - Clear, documented schemas
  */
 
 import { z } from 'zod';
 
 // =============================================================================
-// BASIC TYPES & UTILITIES
+// BASE SCHEMAS - Common patterns used across the system
 // =============================================================================
 
 /**
- * Base schema for entities with deterministic IDs
- * All entities must have stable, reproducible identifiers
+ * UUID v4 validation pattern
  */
-const BaseEntitySchema = z.object({
-  id: z.string().min(1), // deterministic ID, not UUID
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
+const UuidSchema = z.string().uuid();
 
 /**
- * Vector representation for embeddings
- * Normalized to unit length for cosine similarity
+ * ISO timestamp string or Date object
  */
-const VectorSchema = z.object({
-  dimensions: z.number().int().positive(),
-  values: z.array(z.number()).min(1),
-  norm: z.number().positive(), // for validation
-});
+const TimestampSchema = z.union([z.string().datetime(), z.date()]);
 
 /**
- * Content hash for duplicate detection and caching
- * SHA-256 of normalized content
+ * Entry in a batch - represents a single captured text snippet
  */
-const ContentHashSchema = z.string().regex(/^[a-f0-9]{64}$/);
-
-// =============================================================================
-// SESSION & BATCH SCHEMAS
-// =============================================================================
-
-/**
- * Individual text entry from OCR/capture
- * Raw data from the capture system
- */
-const EntrySchema = z.object({
+export const EntrySchema = z.object({
   text: z.string().min(1),
-  timestamp: z.date().optional(),
-  confidence: z.number().min(0).max(1).optional(), // OCR confidence
+  timestamp: z.date(),
   metadata: z.record(z.unknown()).optional(),
 });
 
 /**
- * Session markers for grouping related captures
- * Used to identify study session boundaries
+ * Session markers for tracking capture sessions
  */
-const SessionMarkerSchema = z.object({
-  start: z.date().optional(),
-  end: z.date().optional(),
-  sessionId: z.string().uuid().optional(),
+export const SessionMarkerSchema = z.object({
+  sessionId: z.string().min(1),
+  startTime: z.date(),
+  endTime: z.date().optional(),
+  metadata: z.record(z.unknown()).optional(),
 });
 
-/**
- * Source information for provenance tracking
- * Tracks where the content came from
- */
-const SourceInfoSchema = z.object({
-  window: z.string().min(1),
-  topic: z.string().min(1), // broad category like "programming", "chemistry"
-  batchId: z.string().uuid(),
-  entryCount: z.number().int().positive(),
-  uri: z.string().url().optional(), // if from web source
-});
+// =============================================================================
+// BATCH SCHEMAS - Input from capture system
+// =============================================================================
 
 /**
- * Input batch from BatcherService
- * Groups related text entries for processing
+ * Batch of entries from the capture system
+ * This is the primary input to the concept pipeline
  */
 export const BatchSchema = z.object({
-  batchId: z.string().uuid(),
+  batchId: UuidSchema,
   window: z.string().min(1),
   topic: z.string().min(1),
-  entries: z.array(EntrySchema).min(1),
+  entries: z.array(EntrySchema),
   sessionMarkers: SessionMarkerSchema.optional(),
   createdAt: z.date(),
-  metadata: z.record(z.unknown()).optional(),
+});
+
+/**
+ * Source information for tracking data provenance
+ */
+export const SourceInfoSchema = z.object({
+  window: z.string().min(1),
+  topic: z.string().min(1),
+  batchId: UuidSchema,
+  entryCount: z.number().int().positive(),
+  uri: z.string().url().optional(),
 });
 
 // =============================================================================
-// CONCEPT PIPELINE SCHEMAS
+// CONCEPT CANDIDATE SCHEMAS - Processing pipeline intermediate data
 // =============================================================================
 
 /**
- * Intermediate candidate after assembly
- * Normalized and prepared for routing
+ * Concept candidate - normalized and prepared for routing
  */
 export const ConceptCandidateSchema = z.object({
-  candidateId: z.string().min(1), // deterministic: hash(batchId, index, normalizedText)
-  batchId: z.string().uuid(),
-  index: z.number().int().min(0), // position in batch
+  candidateId: z.string().min(1), // Deterministic ID
+  batchId: UuidSchema,
+  index: z.number().int().nonnegative(),
   rawText: z.string().min(1),
-  normalizedText: z.string().min(1), // cleaned, stitched text
-  contentHash: ContentHashSchema,
+  normalizedText: z.string().min(1),
+  contentHash: z.string().min(1),
   source: SourceInfoSchema,
-  
-  // Optional LLM-extracted fields
-  titleHint: z.string().max(100).optional(),
+  titleHint: z.string().optional(),
   keyTerms: z.array(z.string()).optional(),
-  
   metadata: z.record(z.unknown()).optional(),
   createdAt: z.date(),
 });
 
-/**
- * Enhanced candidate with LLM-generated summary
- * Result of concept extraction phase
- */
-export const EnhancedCandidateSchema = ConceptCandidateSchema.extend({
-  title: z.string().min(1).max(100),
-  summary: z.string().min(50).max(500), // 2-5 sentences
-  quizSeeds: z.array(z.string()).max(5).optional(),
-});
-
-/**
- * Vector representation of a candidate/artifact
- * Two-view approach: label (title) + context (title + summary)
- */
-const EmbeddingInfoSchema = z.object({
-  labelVector: VectorSchema,    // title only - for dedup
-  contextVector: VectorSchema,  // title + summary - for routing/search
-  modelInfo: z.object({
-    name: z.string(),
-    version: z.string(),
-    dimensions: z.number().int().positive(),
-  }),
-});
-
 // =============================================================================
-// ROUTING & PLACEMENT SCHEMAS
-// =============================================================================
-
-/**
- * Folder path with validation rules
- * Represents location in the knowledge hierarchy
- */
-export const FolderPathSchema = z.object({
-  segments: z.array(z.string().min(1)).min(1).max(4), // max depth 4
-  depth: z.number().int().min(1).max(4),
-})
-.refine(data => data.segments.length === data.depth, {
-  message: "Segments length must match depth"
-});
-
-/**
- * Placement score for routing decisions
- * Combines multiple similarity metrics
- */
-const PlacementScoreSchema = z.object({
-  folderId: z.string(),
-  path: z.string(),
-  score: z.number().min(0).max(1),
-  
-  // Component scores
-  centroidSimilarity: z.number().min(0).max(1),
-  exemplarSimilarity: z.number().min(0).max(1),
-  lexicalOverlap: z.number().min(0).max(1),
-  
-  // Penalties
-  depthPenalty: z.number().min(0),
-  variancePenalty: z.number().min(0),
-  
-  metadata: z.record(z.unknown()).optional(),
-});
-
-/**
- * Cross-link to related folders
- * Represents secondary placement options
- */
-const CrossLinkSchema = z.object({
-  targetPath: z.string(),
-  targetFolderId: z.string(),
-  score: z.number().min(0).max(1),
-  reason: z.enum(['strong-secondary-match', 'semantic-overlap', 'user-defined']),
-  confidence: z.number().min(0).max(1),
-});
-
-/**
- * Final routing decision
- * Result of routing algorithm with rationale
- */
-export const RoutingDecisionSchema = z.object({
-  path: z.string(),
-  folderId: z.string(),
-  confidence: z.number().min(0).max(1),
-  method: z.enum(['rule-based', 'vector-similarity', 'llm-arbitration', 'fallback']),
-  
-  scores: z.array(PlacementScoreSchema).optional(),
-  crossLinks: z.array(CrossLinkSchema).optional(),
-  rationale: z.string().optional(), // LLM reasoning
-  
-  provisional: z.boolean().default(false), // needs human review
-  metadata: z.record(z.unknown()).optional(),
-});
-
-// =============================================================================
-// ARTIFACT SCHEMAS
+// CONCEPT ARTIFACT SCHEMAS - Final persisted concepts
 // =============================================================================
 
 /**
  * Content of a concept artifact
- * Distilled knowledge with provenance
  */
-const ContentSchema = z.object({
-  distilled: z.string().min(10), // main concept explanation
-  rawExcerpt: z.string().optional(), // original text for reference
+export const ContentSchema = z.object({
+  original: z.string().min(1),
+  normalized: z.string().min(1),
+  enhancedSummary: z.string().optional(),
   quizSeeds: z.array(z.string()).optional(),
-  tags: z.array(z.string()).optional(),
 });
 
 /**
- * Provenance information
- * Tracks the journey from capture to artifact
+ * Routing decision information
  */
-const ProvenanceSchema = z.object({
-  batchId: z.string().uuid(),
-  candidateId: z.string(),
-  window: z.string(),
-  topic: z.string(),
-  sourceUri: z.string().url().optional(),
-  sessionId: z.string().uuid().optional(),
-  captureTime: z.date(),
-  processingTime: z.date(),
+export const RoutingInfoSchema = z.object({
+  path: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  method: z.string().min(1),
+  rationale: z.string().optional(),
+  alternatives: z.array(z.object({
+    path: z.string(),
+    confidence: z.number().min(0).max(1),
+  })),
+});
+
+/**
+ * Provenance tracking
+ */
+export const ProvenanceSchema = z.object({
+  source: SourceInfoSchema,
+  sessionId: z.string().min(1),
+  capturedAt: z.date(),
+  processedAt: z.date().optional(),
 });
 
 /**
  * Model information for reproducibility
- * Tracks which AI models were used
  */
-const ModelInfoSchema = z.object({
-  embeddings: z.object({
-    name: z.string(),
-    version: z.string(),
-    dimensions: z.number().int().positive(),
-  }).optional(),
-  
-  llm: z.object({
-    name: z.string(),
-    version: z.string(),
-    temperature: z.number().min(0).max(2).optional(),
-  }).optional(),
-  
-  reranker: z.object({
-    name: z.string(),
-    version: z.string(),
-  }).optional(),
+export const ModelInfoSchema = z.object({
+  classifier: z.string().min(1),
+  embedding: z.string().min(1),
+  version: z.string().min(1),
+  parameters: z.record(z.unknown()).optional(),
 });
 
 /**
- * Audit information for traceability
- * Links to detailed audit logs
+ * Audit information
  */
-const AuditInfoSchema = z.object({
+export const AuditInfoSchema = z.object({
   createdAt: z.date(),
-  processVersion: z.string(), // software version
-  decisionLogId: z.string(), // pointer to detailed audit log
-  checksum: z.string(), // integrity verification
+  createdBy: z.string().min(1),
+  lastModified: z.date(),
+  modifiedBy: z.string().min(1),
+  version: z.number().int().positive(),
+  changeLog: z.array(z.object({
+    timestamp: z.date(),
+    user: z.string(),
+    action: z.string(),
+    details: z.string().optional(),
+  })).optional(),
 });
 
 /**
- * Complete concept artifact
- * Final output of the processing pipeline
+ * Complete concept artifact - the final output of the pipeline
  */
 export const ConceptArtifactSchema = z.object({
-  artifactId: z.string().min(1), // deterministic: hash(candidateId, finalPath)
-  candidateId: z.string(),
-  
-  // Core content
+  artifactId: z.string().min(1), // Deterministic ID
+  candidateId: z.string().min(1),
   title: z.string().min(1).max(100),
   summary: z.string().min(50).max(500),
   content: ContentSchema,
-  
-  // Placement
-  routing: RoutingDecisionSchema,
-  embedding: EmbeddingInfoSchema.optional(),
-  
-  // Metadata
+  routing: RoutingInfoSchema,
   provenance: ProvenanceSchema,
   modelInfo: ModelInfoSchema,
   audit: AuditInfoSchema,
-  
-  version: z.string().default('1.0'),
-  status: z.enum(['draft', 'published', 'archived']).default('published'),
+  crossLinks: z.array(z.object({
+    targetPath: z.string(),
+    score: z.number().min(0).max(1),
+    reason: z.string(),
+  })).optional(),
+  embedding: z.instanceof(Float32Array).optional(),
+  version: z.string().min(1),
 });
 
 // =============================================================================
-// FOLDER & HIERARCHY SCHEMAS
+// FOLDER SCHEMAS - Organization structure
 // =============================================================================
 
 /**
- * Statistics about folder contents
- * Used for maintenance and UI display
+ * Folder statistics
  */
-const FolderStatsSchema = z.object({
-  artifactCount: z.number().int().min(0),
+export const FolderStatsSchema = z.object({
+  artifactCount: z.number().int().nonnegative(),
   lastUpdated: z.date(),
+  size: z.number().int().nonnegative(),
   avgConfidence: z.number().min(0).max(1).optional(),
-  variance: z.number().min(0).optional(), // semantic variance of contents
-  size: z.number().int().min(0), // total content size
+  variance: z.number().min(0).optional(),
 });
 
 /**
- * Exemplar artifacts for folder representation
- * Small set of representative items
- */
-const ExemplarSetSchema = z.object({
-  artifacts: z.array(z.object({
-    artifactId: z.string(),
-    title: z.string(),
-    score: z.number().min(0).max(1), // representativeness score
-  })).max(10),
-  lastUpdated: z.date(),
-});
-
-/**
- * Lexical fingerprint for hybrid search
- * Key terms and phrases that characterize the folder
- */
-const LexicalFootprintSchema = z.object({
-  terms: z.array(z.object({
-    term: z.string(),
-    weight: z.number().min(0).max(1),
-    frequency: z.number().int().min(1),
-  })).max(50),
-  lastUpdated: z.date(),
-});
-
-/**
- * Folder manifest with metadata
- * Stable identity and cached derived data
+ * Folder manifest - metadata about a folder in the hierarchy
  */
 export const FolderManifestSchema = z.object({
-  folderId: z.string().min(1), // stable ID, independent of path
+  folderId: z.string().min(1), // Stable ID
   path: z.string().min(1),
-  name: z.string().min(1).max(100),
-  description: z.string().max(500).optional(),
-  
-  // Hierarchy
-  parentIds: z.array(z.string()).optional(), // poly-hierarchy support
+  name: z.string().min(1),
+  description: z.string().optional(),
   depth: z.number().int().min(0).max(4),
-  
-  // Status
-  provisional: z.boolean().default(false), // needs renaming
-  archived: z.boolean().default(false),
-  
-  // Cached data for performance
+  provisional: z.boolean(),
   stats: FolderStatsSchema,
-  centroid: VectorSchema.optional(), // mean of member vectors
-  exemplars: ExemplarSetSchema.optional(),
-  lexicalFootprint: LexicalFootprintSchema.optional(),
-  
-  // Metadata
+  centroid: z.instanceof(Float32Array).optional(),
   createdAt: z.date(),
   updatedAt: z.date(),
-  version: z.string().default('1.0'),
 });
 
 // =============================================================================
-// MAINTENANCE & OPERATIONS SCHEMAS
+// ROUTING SCHEMAS - Decision making structures
 // =============================================================================
 
 /**
- * Path alias for renames and moves
- * Maintains backward compatibility
+ * Placement score for a folder candidate
  */
-export const PathAliasSchema = z.object({
-  oldPath: z.string(),
-  newPath: z.string(),
-  createdAt: z.date(),
-  reason: z.enum(['rename', 'merge', 'split', 'reorganization']),
-  automatic: z.boolean(), // vs human-initiated
+export const PlacementScoreSchema = z.object({
+  folder: FolderManifestSchema,
+  score: z.number().min(0).max(1),
+  components: z.object({
+    centroidSimilarity: z.number().min(0).max(1),
+    exemplarSimilarity: z.number().min(0).max(1),
+    lexicalOverlap: z.number().min(0).max(1),
+    depthPenalty: z.number().min(0).max(1),
+  }).optional(),
 });
 
 /**
- * Review queue item for human oversight
- * Low confidence or conflicting decisions
+ * Routing decision result
+ */
+export const RoutingDecisionSchema = z.object({
+  path: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+  method: z.enum(['rule-based', 'vector-similarity', 'llm-arbitrated', 'fallback']),
+  rationale: z.string().optional(),
+  scores: z.array(PlacementScoreSchema).optional(),
+});
+
+// =============================================================================
+// DEDUPLICATION SCHEMAS
+// =============================================================================
+
+/**
+ * Duplicate check result
+ */
+export const DuplicateCheckResultSchema = z.object({
+  isDuplicate: z.boolean(),
+  type: z.enum(['exact', 'semantic', 'none']).optional(),
+  existing: z.object({
+    artifactId: z.string(),
+    path: z.string(),
+    score: z.number().min(0).max(1),
+    contentHash: z.string(),
+  }).optional(),
+});
+
+// =============================================================================
+// REVIEW QUEUE SCHEMAS
+// =============================================================================
+
+/**
+ * Review reason enumeration
+ */
+export const ReviewReasonSchema = z.enum([
+  'low-confidence',
+  'ambiguous-routing',
+  'potential-duplicate',
+  'quality-concerns',
+  'manual-flag',
+]);
+
+/**
+ * Review item in the queue
  */
 export const ReviewItemSchema = z.object({
   id: z.string().uuid(),
   artifactId: z.string(),
   artifact: ConceptArtifactSchema,
-  
-  reason: z.enum([
-    'low-confidence',
-    'cross-path-duplicate', 
-    'ambiguous-routing',
-    'llm-failure',
-    'manual-review'
-  ]),
-  
+  reason: ReviewReasonSchema,
   suggestedActions: z.array(z.object({
-    action: z.enum(['approve', 'move', 'merge', 'delete']),
-    targetPath: z.string().optional(),
+    action: z.string(),
+    target: z.string().optional(),
     confidence: z.number().min(0).max(1),
-    reasoning: z.string().optional(),
   })),
-  
-  status: z.enum(['pending', 'in-progress', 'resolved', 'skipped']),
-  assignedTo: z.string().optional(),
-  
   createdAt: z.date(),
-  updatedAt: z.date(),
-  resolvedAt: z.date().optional(),
+  status: z.enum(['pending', 'in-review', 'resolved', 'skipped']),
+  resolution: z.object({
+    action: z.string(),
+    details: z.string().optional(),
+    resolvedBy: z.string(),
+    resolvedAt: z.date(),
+  }).optional(),
 });
 
+// =============================================================================
+// SESSION MANIFEST SCHEMAS
+// =============================================================================
+
 /**
- * Audit event for traceability
- * Append-only log of all system actions
+ * Complete session manifest
+ */
+export const SessionManifestSchema = z.object({
+  sessionId: z.string().min(1),
+  startTime: z.date(),
+  endTime: z.date(),
+  batches: z.array(z.object({
+    batchId: z.string().uuid(),
+    timestamp: z.date(),
+    entryCount: z.number().int().positive(),
+  })),
+  artifacts: z.array(z.object({
+    artifactId: z.string(),
+    path: z.string(),
+    timestamp: z.date(),
+  })),
+  stats: z.object({
+    totalBatches: z.number().int().nonnegative(),
+    totalEntries: z.number().int().nonnegative(),
+    totalArtifacts: z.number().int().nonnegative(),
+    totalDuplicates: z.number().int().nonnegative(),
+    routingAccuracy: z.number().min(0).max(1).optional(),
+  }),
+});
+
+// =============================================================================
+// AUDIT EVENT SCHEMAS
+// =============================================================================
+
+/**
+ * Audit event types
  */
 export const AuditEventSchema = z.object({
-  eventId: z.string().uuid(),
+  id: z.string().uuid(),
   timestamp: z.date(),
-  
-  // Event classification
   type: z.enum([
-    'batch-processed',
+    'batch-received',
     'artifact-created',
     'artifact-updated',
+    'artifact-moved',
     'folder-created',
     'folder-renamed',
     'folder-merged',
-    'cross-link-added',
+    'folder-split',
+    'duplicate-detected',
     'review-resolved',
-    'system-error'
   ]),
-  
-  // Context
-  userId: z.string().optional(),
-  sessionId: z.string().uuid().optional(),
-  
-  // Event data
-  entityId: z.string(), // artifact, folder, or batch ID
-  entityType: z.enum(['batch', 'candidate', 'artifact', 'folder', 'review']),
-  
-  // Details
+  entityId: z.string(),
+  entityType: z.string(),
   action: z.string(),
-  changes: z.record(z.unknown()).optional(),
-  metadata: z.record(z.unknown()).optional(),
-  
-  // Error information
-  error: z.object({
-    message: z.string(),
-    code: z.string().optional(),
-    stack: z.string().optional(),
-  }).optional(),
-});
-
-/**
- * Session manifest for batch processing
- * Tracks processing sessions for recovery and audit
- */
-export const SessionManifestSchema = z.object({
-  sessionId: z.string().uuid(),
-  startTime: z.date(),
-  endTime: z.date().optional(),
-  
-  // Input tracking
-  batchesProcessed: z.array(z.string().uuid()),
-  candidatesGenerated: z.number().int().min(0),
-  
-  // Output tracking
-  artifactsCreated: z.array(z.string()),
-  foldersCreated: z.array(z.string()),
-  reviewItemsAdded: z.array(z.string().uuid()),
-  
-  // Status
-  status: z.enum(['active', 'completed', 'failed', 'cancelled']),
-  
-  // Results
-  summary: z.object({
-    totalProcessed: z.number().int().min(0),
-    successCount: z.number().int().min(0),
-    errorCount: z.number().int().min(0),
-    highConfidenceCount: z.number().int().min(0),
-    unsortedCount: z.number().int().min(0),
-  }).optional(),
-  
-  // Error information
-  errors: z.array(z.object({
-    stage: z.string(),
-    error: z.string(),
-    entityId: z.string().optional(),
-  })).optional(),
-  
-  metadata: z.record(z.unknown()).optional(),
+  userId: z.string(),
+  details: z.record(z.unknown()),
+  sessionId: z.string().optional(),
 });
 
 // =============================================================================
-// TYPE EXPORTS
+// TYPE EXPORTS - TypeScript types inferred from schemas
 // =============================================================================
 
-// Infer TypeScript types from schemas
+export type Entry = z.infer<typeof EntrySchema>;
+export type SessionMarker = z.infer<typeof SessionMarkerSchema>;
 export type Batch = z.infer<typeof BatchSchema>;
-export type ConceptCandidate = z.infer<typeof ConceptCandidateSchema>;
-export type EnhancedCandidate = z.infer<typeof EnhancedCandidateSchema>;
-export type RoutingDecision = z.infer<typeof RoutingDecisionSchema>;
-export type ConceptArtifact = z.infer<typeof ConceptArtifactSchema>;
-export type FolderManifest = z.infer<typeof FolderManifestSchema>;
-export type PathAlias = z.infer<typeof PathAliasSchema>;
-export type ReviewItem = z.infer<typeof ReviewItemSchema>;
-export type AuditEvent = z.infer<typeof AuditEventSchema>;
-export type SessionManifest = z.infer<typeof SessionManifestSchema>;
-export type FolderPath = z.infer<typeof FolderPathSchema>;
-
-// Component types
-export type Vector = z.infer<typeof VectorSchema>;
-export type PlacementScore = z.infer<typeof PlacementScoreSchema>;
-export type CrossLink = z.infer<typeof CrossLinkSchema>;
 export type SourceInfo = z.infer<typeof SourceInfoSchema>;
+export type ConceptCandidate = z.infer<typeof ConceptCandidateSchema>;
+export type Content = z.infer<typeof ContentSchema>;
+export type RoutingInfo = z.infer<typeof RoutingInfoSchema>;
+export type Provenance = z.infer<typeof ProvenanceSchema>;
+export type ModelInfo = z.infer<typeof ModelInfoSchema>;
+export type AuditInfo = z.infer<typeof AuditInfoSchema>;
+export type ConceptArtifact = z.infer<typeof ConceptArtifactSchema>;
 export type FolderStats = z.infer<typeof FolderStatsSchema>;
-
-// Utility types for common operations
-export type CreateArtifactInput = Omit<ConceptArtifact, 'artifactId' | 'audit' | 'createdAt' | 'updatedAt'>;
-export type UpdateArtifactInput = Partial<Pick<ConceptArtifact, 'title' | 'summary' | 'content' | 'routing'>>;
-export type CreateFolderInput = Omit<FolderManifest, 'folderId' | 'stats' | 'createdAt' | 'updatedAt'>;
+export type FolderManifest = z.infer<typeof FolderManifestSchema>;
+export type PlacementScore = z.infer<typeof PlacementScoreSchema>;
+export type RoutingDecision = z.infer<typeof RoutingDecisionSchema>;
+export type DuplicateCheckResult = z.infer<typeof DuplicateCheckResultSchema>;
+export type ReviewReason = z.infer<typeof ReviewReasonSchema>;
+export type ReviewItem = z.infer<typeof ReviewItemSchema>;
+export type SessionManifest = z.infer<typeof SessionManifestSchema>;
+export type AuditEvent = z.infer<typeof AuditEventSchema>;

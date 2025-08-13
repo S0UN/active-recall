@@ -1,11 +1,11 @@
 import { ICache } from '../utils/ICache';
 import { injectable } from 'tsyringe';
-import { ConfigService } from '../configs/ConfigService';
+import { PollingConfigService } from '../configs/PollingConfigService';
 
 @injectable()
 export class WindowCache implements ICache<string, { mode: string; lastClassified: number }> {
   private readonly cache = new Map<string, { mode: string; lastClassified: number }>();
-  private readonly configService = new ConfigService();
+  private readonly configService = new PollingConfigService();
 
   get(key: string): { mode: string; lastClassified: number }  {
     return this.cache.get(key) as { mode: string; lastClassified: number };

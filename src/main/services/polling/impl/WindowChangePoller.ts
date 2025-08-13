@@ -2,7 +2,7 @@
 import { injectable, inject } from "tsyringe";
 import activeWindow from "active-win";
 import { IPollingSystem } from "../IPollingSystem";
-import { ConfigService } from "../../../configs/ConfigService";
+import { PollingConfigService } from "../../../configs/PollingConfigService";
 import { BasePoller } from "./BasePoller";
 import { IPoller } from "../IPoller";
 import Logger from "electron-log";
@@ -15,7 +15,7 @@ export class WindowChangePoller extends BasePoller implements IPoller {
 
   constructor(
     @inject("PollingSystem") polling: IPollingSystem,
-    @inject("PollingConfig") configInterval: ConfigService
+    @inject("PollingConfig") configInterval: PollingConfigService
   ) {
     super(polling, configInterval.windowChangeIntervalMs, "WindowChange", () =>
       this.poll()

@@ -9,7 +9,7 @@ import { IBatcherService } from "./network/IBatcherService";
 import { VisionService } from "./processing/impl/VisionService";
 import { ICache } from "../utils/ICache";
 import { StudyingState } from "./orchestrator/impl/StudyingState";
-import { ConfigService } from "../configs/ConfigService";
+import { PollingConfigService } from "../configs/PollingConfigService";
 import { ILogger } from "../utils/ILogger";
 import { UniversalModelFactory } from "./analysis/impl/UniversalModelFactory";
 import { VisionServiceError, ClassificationError, CacheError, ModelInitializationError, ModelNotFoundError, ModelInferenceError, ScreenCaptureError } from "../errors/CustomErrors";
@@ -53,7 +53,7 @@ export class Orchestrator {
     public readonly logger: ILogger,
 
     @inject("PollingConfig")
-    private readonly config: ConfigService,
+    private readonly config: PollingConfigService,
 
     @inject("ModelFactory")
     private readonly modelFactory: UniversalModelFactory

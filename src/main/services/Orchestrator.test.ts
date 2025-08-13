@@ -7,7 +7,7 @@ import { IClassificationService } from "./analysis/IClassificationService";
 import { IBatcherService } from "./network/IBatcherService";
 import { VisionService } from "./processing/impl/VisionService";
 import { ICache } from "../utils/ICache";
-import { ConfigService } from "../configs/ConfigService";
+import { PollingConfigService } from "../configs/PollingConfigService";
 import { ILogger } from "../utils/ILogger";
 import {  CacheError } from "../errors/CustomErrors";
 
@@ -61,7 +61,7 @@ const createMockBatcher = (): IBatcherService => ({
   clearBatches: vi.fn(),
 });
 
-const createMockConfig = (): ConfigService => ({
+const createMockConfig = (): PollingConfigService => ({
   windowChangeIntervalMs: 1000,
   studyingOcrIntervalMs: 5000,
   idleRevalidationIntervalMs: 30000,

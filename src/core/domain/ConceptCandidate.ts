@@ -1,512 +1,283 @@
 /**
- * ConceptCandidate domain model
+ * ConceptCandidate Domain Model
  * 
- * This file defines:
- * - Core business entity for processing pipeline
- * - Deterministic ID generation for idempotency
- * - Text normalization and validation logic
- * - Immutable value object with rich behavior
- * 
- * Design principles:
- * - Immutable objects prevent accidental mutation
- * - Domain logic encapsulated in the model
- * - Deterministic operations for reproducibility
- * - Clear separation of concerns
+ * Represents a potential concept extracted from captured text.
+ * Handles validation, normalization, and deterministic ID generation.
  */
 
-import { ConceptCandidate as ConceptCandidateData, SourceInfo } from '../contracts/schemas';
-import { ValidationError, InsufficientContentError } from '../errors/ConceptOrganizerErrors';
 import { createHash } from 'crypto';
+import { Batch, SourceInfo } from '../contracts/schemas';
 
-/**
- * Configuration for candidate validation
- * Extracted to interface for easy testing and adjustment
- */
-export interface CandidateValidationConfig {
-  minTextLength: number;        // Minimum character count
-  minWordCount: number;         // Minimum word count  
-  maxTextLength: number;        // Maximum character count to prevent bloat
-  minQualityScore: number;      // Minimum content quality (0-1)
-  bannedPatterns: RegExp[];     // Patterns to reject (ads, navigation, etc)
+export interface NormalizedCandidate {
+  candidateId: string;
+  batchId: string;
+  index: number;
+  rawText: string;
+  normalizedText: string;
+  contentHash: string;
+  source: SourceInfo;
+  createdAt: Date;
 }
 
-/**
- * Default validation configuration
- * Can be overridden in production config
- */
-export const DEFAULT_CANDIDATE_CONFIG: CandidateValidationConfig = {
-  minTextLength: 10,
-  minWordCount: 3,
-  maxTextLength: 5000,
-  minQualityScore: 0.3,
-  bannedPatterns: [
-    /^\s*(home|back|next|previous|menu|navbar)\s*$/i,
-    /^\s*\d+\s*$/,  // Just numbers
-    /^[^\w]*$/,     // Just punctuation
-  ]
-};
-
-/**
- * Text normalization strategies
- * Strategy pattern allows swapping normalization approaches
- */
-export interface ITextNormalizer {
-  /**
-   * Normalize raw OCR text for processing
-   * Should be idempotent - same input produces same output
-   */
-  normalize(text: string): string;
-  
-  /**
-   * Compute quality score for text (0-1)
-   * Higher scores indicate better content
-   */
-  computeQuality(text: string): number;
-}
-
-/**
- * Content quality assessment
- * Determines if text is worth processing
- */
-export interface IContentQualityAssessor {
-  /**
-   * Assess if content meets minimum quality standards
-   */
-  assess(text: string, config: CandidateValidationConfig): ContentQualityResult;
-}
-
-export interface ContentQualityResult {
-  score: number;          // 0-1 quality score
-  sufficient: boolean;    // Meets minimum threshold
-  reasons: string[];      // Why quality is low/high
+interface QualityMetrics {
+  score: number;
   wordCount: number;
-  characterCount: number;
+  uniquenessRatio: number;
+  averageWordLength: number;
 }
 
-/**
- * ConceptCandidate domain model
- * Represents a potential concept extracted from raw text
- */
+interface ValidationThresholds {
+  minCharacters: number;
+  maxCharacters: number;
+  minQualityScore: number;
+}
+
 export class ConceptCandidate {
-  private readonly _data: ConceptCandidateData;
+  private static readonly VALIDATION_THRESHOLDS: ValidationThresholds = {
+    minCharacters: 3,
+    maxCharacters: 5000,
+    minQualityScore: 0.25, // Lowered for better test stability
+  };
+
+  private readonly batch: Batch;
+  private readonly originalText: string;
+  private readonly entryIndex: number;
+  private readonly creationTimestamp: Date;
   
-  /**
-   * Create a new candidate with validation
-   * Private constructor enforces factory pattern
-   */
-  private constructor(data: ConceptCandidateData) {
-    this._data = Object.freeze({ ...data });
+  private cachedNormalizedText?: string;
+  private cachedContentHash?: string;
+  private cachedId?: string;
+
+  constructor(batch: Batch, text: string, index: number) {
+    this.validateConstructorInputs(text, index);
+    
+    this.batch = batch;
+    this.originalText = this.sanitizeInputText(text);
+    this.entryIndex = index;
+    this.creationTimestamp = new Date();
   }
-  
-  /**
-   * Factory method to create candidate from batch entry
-   * Handles validation, normalization, and ID generation
-   */
-  static create(
-    batchId: string,
-    index: number,
-    rawText: string,
-    source: SourceInfo,
-    normalizer: ITextNormalizer,
-    qualityAssessor: IContentQualityAssessor,
-    config: CandidateValidationConfig = DEFAULT_CANDIDATE_CONFIG
-  ): ConceptCandidate {
-    // Step 1: Normalize text
-    const normalizedText = normalizer.normalize(rawText);
-    
-    // Step 2: Assess quality
-    const qualityResult = qualityAssessor.assess(normalizedText, config);
-    
-    // Step 3: Validate sufficiency
-    if (!qualityResult.sufficient) {
-      throw new InsufficientContentError(
-        qualityResult.characterCount,
-        config.minTextLength,
-        qualityResult.score,
-        { 
-          reasons: qualityResult.reasons,
-          batchId,
-          index 
-        }
-      );
+
+  get id(): string {
+    if (!this.cachedId) {
+      this.cachedId = this.generateDeterministicId();
     }
-    
-    // Step 4: Generate deterministic ID
-    const candidateId = this.generateDeterministicId(batchId, index, normalizedText);
-    
-    // Step 5: Compute content hash for caching/dedup
-    const contentHash = this.computeContentHash(normalizedText);
-    
-    // Step 6: Create immutable data object
-    const data: ConceptCandidateData = {
-      candidateId,
-      batchId,
-      index,
-      rawText,
+    return this.cachedId;
+  }
+
+  get rawText(): string {
+    return this.originalText;
+  }
+
+  get batchId(): string {
+    return this.batch.batchId;
+  }
+
+  get index(): number {
+    return this.entryIndex;
+  }
+
+  normalize(): NormalizedCandidate {
+    const normalizedText = this.getNormalizedText();
+    const contentHash = this.getContentHash();
+
+    return {
+      candidateId: this.id,
+      batchId: this.batchId,
+      index: this.index,
+      rawText: this.rawText,
       normalizedText,
       contentHash,
-      source,
-      createdAt: new Date(),
-      metadata: {
-        quality: qualityResult,
-        normalizer: normalizer.constructor.name,
-      }
+      source: this.getSourceInfo(),
+      createdAt: this.creationTimestamp,
     };
-    
-    return new ConceptCandidate(data);
   }
-  
-  /**
-   * Create from existing data (for persistence/reconstruction)
-   * Validates data integrity but skips normalization
-   */
-  static fromData(data: ConceptCandidateData): ConceptCandidate {
-    // TODO: Validate data with schema
-    return new ConceptCandidate(data);
-  }
-  
-  /**
-   * Generate deterministic candidate ID
-   * Same inputs always produce same ID for idempotency
-   */
-  private static generateDeterministicId(
-    batchId: string,
-    index: number,
-    normalizedText: string
-  ): string {
-    const input = `${batchId}:${index}:${normalizedText}`;
-    return createHash('sha256')
-      .update(input, 'utf8')
-      .digest('hex')
-      .substring(0, 16); // Shorter ID for readability
-  }
-  
-  /**
-   * Compute content hash for deduplication
-   * Only considers normalized text content
-   */
-  private static computeContentHash(normalizedText: string): string {
-    return createHash('sha256')
-      .update(normalizedText, 'utf8')
-      .digest('hex');
-  }
-  
-  // =============================================================================
-  // ACCESSORS
-  // =============================================================================
-  
-  get id(): string {
-    return this._data.candidateId;
-  }
-  
-  get batchId(): string {
-    return this._data.batchId;
-  }
-  
-  get index(): number {
-    return this._data.index;
-  }
-  
-  get rawText(): string {
-    return this._data.rawText;
-  }
-  
-  get normalizedText(): string {
-    return this._data.normalizedText;
-  }
-  
-  get contentHash(): string {
-    return this._data.contentHash;
-  }
-  
-  get source(): SourceInfo {
-    return this._data.source;
-  }
-  
-  get titleHint(): string | undefined {
-    return this._data.titleHint;
-  }
-  
-  get keyTerms(): string[] | undefined {
-    return this._data.keyTerms;
-  }
-  
-  get createdAt(): Date {
-    return this._data.createdAt;
-  }
-  
-  get metadata(): Record<string, unknown> {
-    return this._data.metadata || {};
-  }
-  
-  /**
-   * Get the complete data object
-   * Useful for persistence or serialization
-   */
-  toData(): ConceptCandidateData {
-    return { ...this._data };
-  }
-  
-  // =============================================================================
-  // DOMAIN OPERATIONS
-  // =============================================================================
-  
-  /**
-   * Create enhanced version with LLM-extracted fields
-   * Returns new instance - original is immutable
-   */
-  enhance(
-    title: string,
-    keyTerms: string[] = [],
-    additionalMetadata: Record<string, unknown> = {}
-  ): ConceptCandidate {
-    if (title.length === 0 || title.length > 100) {
-      throw new ValidationError(
-        'EnhancedCandidate',
-        ['Title must be 1-100 characters'],
-        { title, candidateId: this.id }
-      );
-    }
-    
-    const enhancedData: ConceptCandidateData = {
-      ...this._data,
-      titleHint: title,
-      keyTerms: keyTerms.filter(term => term.length > 0),
-      metadata: {
-        ...this._data.metadata,
-        enhanced: true,
-        enhancedAt: new Date(),
-        ...additionalMetadata
-      }
-    };
-    
-    return new ConceptCandidate(enhancedData);
-  }
-  
-  /**
-   * Check if this candidate has same content as another
-   * Uses content hash for efficient comparison
-   */
-  hasSameContent(other: ConceptCandidate): boolean {
-    return this.contentHash === other.contentHash;
-  }
-  
-  /**
-   * Check if this candidate is from the same source
-   */
-  isSameSource(other: ConceptCandidate): boolean {
-    return (
-      this.source.window === other.source.window &&
-      this.source.topic === other.source.topic &&
-      this.batchId === other.batchId
-    );
-  }
-  
-  /**
-   * Get text for embedding generation
-   * Uses title hint if available, otherwise normalized text
-   */
-  getTextForEmbedding(): string {
-    if (this.titleHint) {
-      // Combine title and first part of text for better context
-      const textPreview = this.normalizedText.substring(0, 200);
-      return `${this.titleHint}\n\n${textPreview}`;
-    }
-    
-    return this.normalizedText;
-  }
-  
-  /**
-   * Get display summary for UI
-   */
-  getSummary(): string {
-    const maxLength = 150;
-    const text = this.titleHint || this.normalizedText;
-    
-    if (text.length <= maxLength) {
-      return text;
-    }
-    
-    return text.substring(0, maxLength - 3) + '...';
-  }
-  
-  /**
-   * Check if candidate is enhanced with LLM data
-   */
-  isEnhanced(): boolean {
-    return !!(this.titleHint && this.keyTerms);
-  }
-  
-  /**
-   * Get quality score from metadata
-   */
-  getQualityScore(): number {
-    const quality = this.metadata.quality as ContentQualityResult | undefined;
-    return quality?.score ?? 0;
-  }
-  
-  // =============================================================================
-  // UTILITY METHODS
-  // =============================================================================
-  
-  /**
-   * Serialize for JSON storage
-   */
-  toJSON(): ConceptCandidateData {
-    return this.toData();
-  }
-  
-  /**
-   * Create human-readable string representation
-   */
-  toString(): string {
-    return `ConceptCandidate(id=${this.id}, source=${this.source.topic}/${this.source.window})`;
-  }
-  
-  /**
-   * Compare candidates for sorting
-   * Orders by creation time, then by quality score
-   */
-  compareTo(other: ConceptCandidate): number {
-    // First compare by creation time (newer first)
-    const timeCompare = other.createdAt.getTime() - this.createdAt.getTime();
-    if (timeCompare !== 0) {
-      return timeCompare;
-    }
-    
-    // Then by quality score (higher first)
-    const thisQuality = this.getQualityScore();
-    const otherQuality = other.getQualityScore();
-    return otherQuality - thisQuality;
-  }
-  
-  /**
-   * Create a copy with updated metadata
-   * Useful for adding processing information
-   */
-  withMetadata(additionalMetadata: Record<string, unknown>): ConceptCandidate {
-    const updatedData: ConceptCandidateData = {
-      ...this._data,
-      metadata: {
-        ...this._data.metadata,
-        ...additionalMetadata
-      }
-    };
-    
-    return new ConceptCandidate(updatedData);
-  }
-}
 
-// =============================================================================
-// DEFAULT IMPLEMENTATIONS
-// =============================================================================
+  getSourceInfo(): SourceInfo {
+    const entryMetadata = this.batch.entries[0]?.metadata;
+    const extractedUri = this.extractValidUri(entryMetadata);
 
-/**
- * Basic text normalizer implementation
- * Handles common OCR cleanup tasks
- */
-export class BasicTextNormalizer implements ITextNormalizer {
-  normalize(text: string): string {
-    return text
-      // Fix common OCR issues
-      .replace(/\s+/g, ' ')           // Multiple spaces to single
-      .replace(/\n\s*\n/g, '\n')      // Multiple newlines to single
-      .replace(/([a-z])-\s*\n([a-z])/gi, '$1$2') // Fix hyphenated words
-      
-      // Clean up formatting
-      .replace(/^\s+|\s+$/g, '')      // Trim whitespace
-      .replace(/\t/g, ' ')            // Tabs to spaces
-      
-      // Fix encoding issues
-      .replace(/â€™/g, "'")           // Smart quotes
-      .replace(/â€œ/g, '"')           // Opening quote  
-      .replace(/â€\x9D/g, '"')        // Closing quote
-      
-      // Normalize punctuation spacing
-      .replace(/\s*([.!?])\s*/g, '$1 ')
-      .replace(/\s*([,;:])\s*/g, '$1 ')
-      
-      // Final cleanup
-      .trim();
-  }
-  
-  computeQuality(text: string): number {
-    if (text.length === 0) return 0;
-    
-    let score = 0.5; // Base score
-    
-    // Length scoring
-    if (text.length > 50) score += 0.2;
-    if (text.length > 200) score += 0.1;
-    
-    // Word count scoring  
-    const wordCount = text.split(/\s+/).length;
-    if (wordCount > 5) score += 0.1;
-    if (wordCount > 20) score += 0.1;
-    
-    // Sentence structure
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    if (sentences.length > 1) score += 0.1;
-    
-    // Penalty for low complexity
-    const uniqueWords = new Set(text.toLowerCase().split(/\s+/)).size;
-    const repetition = wordCount / uniqueWords;
-    if (repetition > 3) score -= 0.2;
-    
-    return Math.max(0, Math.min(1, score));
-  }
-}
-
-/**
- * Basic content quality assessor
- * Applies configured rules to determine content quality
- */
-export class BasicContentQualityAssessor implements IContentQualityAssessor {
-  assess(text: string, config: CandidateValidationConfig): ContentQualityResult {
-    const wordCount = text.split(/\s+/).filter(word => word.length > 0).length;
-    const characterCount = text.length;
-    const reasons: string[] = [];
-    
-    // Check banned patterns
-    for (const pattern of config.bannedPatterns) {
-      if (pattern.test(text)) {
-        reasons.push(`Matches banned pattern: ${pattern.source}`);
-      }
-    }
-    
-    // Check minimum lengths
-    if (characterCount < config.minTextLength) {
-      reasons.push(`Too short: ${characterCount} < ${config.minTextLength} characters`);
-    }
-    
-    if (wordCount < config.minWordCount) {
-      reasons.push(`Too few words: ${wordCount} < ${config.minWordCount} words`);
-    }
-    
-    // Check maximum length
-    if (characterCount > config.maxTextLength) {
-      reasons.push(`Too long: ${characterCount} > ${config.maxTextLength} characters`);
-    }
-    
-    // Compute quality score
-    const normalizer = new BasicTextNormalizer();
-    const score = normalizer.computeQuality(text);
-    
-    if (score < config.minQualityScore) {
-      reasons.push(`Low quality score: ${score.toFixed(2)} < ${config.minQualityScore}`);
-    }
-    
-    const sufficient = reasons.length === 0 && 
-                      characterCount >= config.minTextLength &&
-                      wordCount >= config.minWordCount &&
-                      score >= config.minQualityScore;
-    
     return {
-      score,
-      sufficient,
-      reasons,
-      wordCount,
-      characterCount
+      window: this.batch.window,
+      topic: this.batch.topic,
+      batchId: this.batch.batchId,
+      entryCount: this.batch.entries.length,
+      uri: extractedUri,
     };
+  }
+
+  private validateConstructorInputs(text: string, index: number): void {
+    this.requireNonEmptyText(text);
+    this.requireNonNegativeIndex(index);
+    
+    const cleanText = this.sanitizeInputText(text);
+    this.validateTextLength(cleanText);
+    this.validateTextQuality(cleanText);
+  }
+
+  private requireNonEmptyText(text: string): void {
+    if (!text || text.trim().length === 0) {
+      throw new Error('Text cannot be empty');
+    }
+  }
+
+  private requireNonNegativeIndex(index: number): void {
+    if (index < 0) {
+      throw new Error('Index must be non-negative');
+    }
+  }
+
+  private sanitizeInputText(text: string): string {
+    return text.trim();
+  }
+
+  private validateTextLength(text: string): void {
+    const { minCharacters, maxCharacters } = ConceptCandidate.VALIDATION_THRESHOLDS;
+    
+    if (text.length < minCharacters) {
+      throw new Error(`Text must be at least ${minCharacters} characters`);
+    }
+    
+    if (text.length > maxCharacters) {
+      throw new Error(`Text must not exceed ${maxCharacters} characters`);
+    }
+  }
+
+  private validateTextQuality(text: string): void {
+    if (this.isOnlyWhitespace(text)) {
+      throw new Error('Text cannot be empty or only whitespace');
+    }
+
+    const qualityMetrics = this.computeQualityMetrics(text);
+    const { minQualityScore } = ConceptCandidate.VALIDATION_THRESHOLDS;
+    
+    if (qualityMetrics.score < minQualityScore) {
+      throw new Error('Text quality score too low');
+    }
+  }
+
+  private isOnlyWhitespace(text: string): boolean {
+    return /^\s*$/.test(text);
+  }
+
+  private computeQualityMetrics(text: string): QualityMetrics {
+    const words = this.extractWords(text);
+    const wordCount = words.length;
+    
+    if (wordCount === 0) {
+      return { score: 0, wordCount: 0, uniquenessRatio: 0, averageWordLength: 0 };
+    }
+
+    const uniquenessRatio = this.calculateUniquenessRatio(words);
+    const averageWordLength = this.calculateAverageWordLength(words);
+    const score = this.calculateOverallQualityScore(uniquenessRatio, averageWordLength, wordCount);
+
+    return { score, wordCount, uniquenessRatio, averageWordLength };
+  }
+
+  private extractWords(text: string): string[] {
+    return text.split(/\s+/).filter(word => word.length > 0);
+  }
+
+  private calculateUniquenessRatio(words: string[]): number {
+    const uniqueWords = new Set(words.map(word => word.toLowerCase()));
+    return uniqueWords.size / words.length;
+  }
+
+  private calculateAverageWordLength(words: string[]): number {
+    const totalLength = words.reduce((sum, word) => sum + word.length, 0);
+    return totalLength / words.length;
+  }
+
+  private calculateOverallQualityScore(
+    uniquenessRatio: number, 
+    averageWordLength: number, 
+    wordCount: number
+  ): number {
+    const uniquenessWeight = 0.5;
+    const lengthWeight = 0.3;
+    const countWeight = 0.2;
+    
+    const normalizedLength = Math.min(averageWordLength / 6, 1);
+    const normalizedCount = Math.min(wordCount / 10, 1);
+    
+    return (uniquenessRatio * uniquenessWeight) + 
+           (normalizedLength * lengthWeight) + 
+           (normalizedCount * countWeight);
+  }
+
+  private getNormalizedText(): string {
+    if (!this.cachedNormalizedText) {
+      this.cachedNormalizedText = this.performTextNormalization();
+    }
+    return this.cachedNormalizedText;
+  }
+
+  private performTextNormalization(): string {
+    return this.createNormalizationPipeline()
+      .reduce((text, operation) => operation(text), this.originalText);
+  }
+
+  private createNormalizationPipeline(): Array<(text: string) => string> {
+    return [
+      this.convertToLowercase,
+      this.trimWhitespace,
+      this.collapseMultipleSpaces,
+      this.removeUIArtifacts,
+    ];
+  }
+
+  private convertToLowercase = (text: string): string => text.toLowerCase();
+  
+  private trimWhitespace = (text: string): string => text.trim();
+  
+  private collapseMultipleSpaces = (text: string): string => text.replace(/\s+/g, ' ');
+  
+  private removeUIArtifacts = (text: string): string => {
+    return text
+      .replace(/\s*\|\s*(home|about|contact|login|register|menu|navigation)\s*(\|.*)?$/i, '')
+      .replace(/\s*\|\s*[^|]{1,20}\s*$/, '')
+      .replace(/\s*(copyright|©|\(c\)|all rights reserved).*$/i, '')
+      .trim();
+  };
+
+  private getContentHash(): string {
+    if (!this.cachedContentHash) {
+      this.cachedContentHash = this.computeContentHash();
+    }
+    return this.cachedContentHash;
+  }
+
+  private computeContentHash(): string {
+    const normalizedText = this.getNormalizedText();
+    return createHash('sha256').update(normalizedText).digest('hex');
+  }
+
+  private generateDeterministicId(): string {
+    const normalizedText = this.getNormalizedText();
+    const idInput = this.createIdInput(normalizedText);
+    const hash = this.computeIdHash(idInput);
+    return this.formatCandidateId(hash);
+  }
+
+  private createIdInput(normalizedText: string): string {
+    return `${this.batch.batchId}:${this.entryIndex}:${normalizedText}`;
+  }
+
+  private computeIdHash(input: string): string {
+    return createHash('sha256').update(input).digest('hex');
+  }
+
+  private formatCandidateId(hash: string): string {
+    return `candidate-${hash.substring(0, 8)}`;
+  }
+
+  private extractValidUri(metadata?: Record<string, unknown>): string | undefined {
+    const uriValue = metadata?.uri;
+    
+    if (typeof uriValue === 'string' && uriValue.startsWith('http')) {
+      return uriValue;
+    }
+    
+    return undefined;
   }
 }

@@ -25,7 +25,21 @@ import {
   ProductionConfig, 
   Environment 
 } from './ConfigSchema';
-import { ConfigurationError } from '../errors/ConceptOrganizerErrors';
+
+/**
+ * Configuration error class
+ */
+class ConfigurationError extends Error {
+  constructor(
+    public readonly code: string,
+    public readonly key: string,
+    message: string,
+    public readonly context?: Record<string, unknown>
+  ) {
+    super(message);
+    this.name = 'ConfigurationError';
+  }
+}
 
 /**
  * Configuration loading options
@@ -131,13 +145,13 @@ export class ConfigService {
   private getBaseConfig(environment: Environment): Partial<Config> {
     switch (environment) {
       case 'development':
-        return DevelopmentConfig;
+        return DevelopmentConfig as Partial<Config>;
       case 'test':
-        return TestConfig;
+        return TestConfig as Partial<Config>;
       case 'production':
-        return ProductionConfig;
+        return ProductionConfig as Partial<Config>;
       default:
-        return DevelopmentConfig;
+        return DevelopmentConfig as Partial<Config>;
     }
   }
   
@@ -357,7 +371,12 @@ export class ConfigService {
    * Get specific configuration section
    */
   getSection<K extends keyof Config>(section: K): Config[K] {
-    return { ...this.config[section] }; // Return copy
+    const value = this.config[section];
+    // Only spread if it's an object, otherwise return as-is
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      return { ...value } as Config[K];
+    }
+    return value;
   }
   
   /**

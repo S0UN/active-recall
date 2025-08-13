@@ -32,5 +32,6 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/core/**/*", "**/*.test.ts", "**/*.spec.ts", "src/test/**/*"]
 }

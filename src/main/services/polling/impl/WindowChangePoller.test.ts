@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { WindowChangePoller } from "./WindowChangePoller";
 import { IPollingSystem } from "../IPollingSystem";
-import { ConfigService } from "../../../configs/ConfigService";
+import { PollingConfigService } from "../../../configs/PollingConfigService";
 import { WindowDetectionError } from "../../../errors/CustomErrors";
 
 // Mock external dependencies
@@ -13,7 +13,7 @@ const createMockPollingSystem = (): IPollingSystem => ({
   unregister: vi.fn(),
 });
 
-const createMockConfigService = (): ConfigService => ({
+const createMockConfigService = (): PollingConfigService => ({
   windowChangeIntervalMs: 1000,
   studyingOcrIntervalMs: 5000,
   idleRevalidationIntervalMs: 30000,
@@ -24,7 +24,7 @@ const createMockConfigService = (): ConfigService => ({
 
 describe("WindowChangePoller", () => {
   let mockPollingSystem: IPollingSystem;
-  let mockConfigService: ConfigService;
+  let mockConfigService: PollingConfigService;
   let windowPoller: WindowChangePoller;
   let mockOnChange: ReturnType<typeof vi.fn>;
 
@@ -88,7 +88,7 @@ describe("WindowChangePoller", () => {
       const registeredCallback = vi.mocked(mockPollingSystem.register).mock.calls[0][2];
       
       // Execute the polling callback
-      await registeredCallback();
+      registeredCallback();
 
       expect(mockOnChange).toHaveBeenCalledWith("", "Test Application");
     });

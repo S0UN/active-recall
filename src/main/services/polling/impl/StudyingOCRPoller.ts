@@ -1,7 +1,7 @@
 import { injectable, inject } from "tsyringe";
 import { BasePoller } from "./BasePoller";
 import { IPollingSystem } from "../IPollingSystem";
-import { ConfigService } from "../../../configs/ConfigService";
+import { PollingConfigService } from "../../../configs/PollingConfigService";
 import { IPoller } from "../IPoller";
 
 @injectable()
@@ -10,7 +10,7 @@ export class StudyingOCRPoller extends BasePoller implements IPoller {
 
   constructor(
     @inject("PollingSystem")   polling: IPollingSystem,
-    @inject(ConfigService)      configInterval: ConfigService
+    @inject(PollingConfigService)      configInterval: PollingConfigService
   ) {
     super(
       polling,
