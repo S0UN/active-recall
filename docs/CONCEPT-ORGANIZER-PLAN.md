@@ -63,11 +63,11 @@ Convert noisy OCR'd study snippets into durable Concept Artifacts, automatically
 
 ### AuditLog
 - Append-only JSONL with:
-  - Inputs, thresholds, top-K folder candidates
-  - Final decision, confidence
-  - Prompts/responses if LLM used
-  - Operator (auto/human)
-  - Timestamps
+	- Inputs, thresholds, top-K folder candidates
+	- Final decision, confidence
+	- Prompts/responses if LLM used
+	- Operator (auto/human)
+	- Timestamps
 
 ### ReviewQueue
 - Holds low-confidence and cross-path conflicts
@@ -92,65 +92,65 @@ Convert noisy OCR'd study snippets into durable Concept Artifacts, automatically
 ### Input: Batch (from BatcherService)
 ```json
 {
-  "window": "string",
-  "topic": "string (programming, chemistry, etc.)",
-  "entries": [
-    { "text": "string", "timestamp": "optional" }
-  ],
-  "sessionMarkers": { "start": "optional", "end": "optional" }
+	"window": "string",
+	"topic": "string (programming, chemistry, etc.)",
+	"entries": [
+		{ "text": "string", "timestamp": "optional" }
+	],
+	"sessionMarkers": { "start": "optional", "end": "optional" }
 }
 ```
 
 ### Intermediate: Concept Candidate
 ```json
 {
-  "candidate_id": "deterministic from (batchId, index, normalized text)",
-  "raw_text": "stitched text",
-  "source": {
-    "window": "string",
-    "topic": "string",
-    "batchId": "string",
-    "entryCount": "number"
-  },
-  "title_hint": "optional",
-  "key_terms": ["optional"]
+	"candidate_id": "deterministic from (batchId, index, normalized text)",
+	"raw_text": "stitched text",
+	"source": {
+		"window": "string",
+		"topic": "string",
+		"batchId": "string",
+		"entryCount": "number"
+	},
+	"title_hint": "optional",
+	"key_terms": ["optional"]
 }
 ```
 
 ### Output: Concept Artifact
 ```json
 {
-  "artifact_id": "deterministic from (candidate_id, final_path)",
-  "title": "short string",
-  "summary": "2-5 sentence distilled explanation",
-  "quiz_seeds": ["short prompts"],
-  "content": {
-    "distilled": "note",
-    "raw_excerpt": "optional for provenance"
-  },
-  "routing": {
-    "final_path": "Domain/Subdomain/Topic/Concept",
-    "cross_links": ["optional paths"],
-    "confidence": 0.0-1.0,
-    "rationale": "if LLM arbiters",
-    "provisional": true/false
-  },
-  "provenance": {
-    "batchId": "string",
-    "window": "string",
-    "source_uri": "optional",
-    "timestamps": {}
-  },
-  "model_info": {
-    "embeddings_model": "name + version",
-    "reranker": "optional",
-    "llm": "optional + version"
-  },
-  "audit": {
-    "created_at": "ISO string",
-    "process_version": "string",
-    "decision_log_pointer": "string"
-  }
+	"artifact_id": "deterministic from (candidate_id, final_path)",
+	"title": "short string",
+	"summary": "2-5 sentence distilled explanation",
+	"quiz_seeds": ["short prompts"],
+	"content": {
+		"distilled": "note",
+		"raw_excerpt": "optional for provenance"
+	},
+	"routing": {
+		"final_path": "Domain/Subdomain/Topic/Concept",
+		"cross_links": ["optional paths"],
+		"confidence": 0.0-1.0,
+		"rationale": "if LLM arbiters",
+		"provisional": true/false
+	},
+	"provenance": {
+		"batchId": "string",
+		"window": "string",
+		"source_uri": "optional",
+		"timestamps": {}
+	},
+	"model_info": {
+		"embeddings_model": "name + version",
+		"reranker": "optional",
+		"llm": "optional + version"
+	},
+	"audit": {
+		"created_at": "ISO string",
+		"process_version": "string",
+		"decision_log_pointer": "string"
+	}
 }
 ```
 
@@ -159,15 +159,15 @@ Convert noisy OCR'd study snippets into durable Concept Artifacts, automatically
 ### Concept Index
 - Vector per artifact (+ metadata: path, quality score, created_at)
 - Two-view vectors:
-  - **Label vector**: title only (fast dedup cue)
-  - **Context vector**: title + distilled summary (routing/search)
+	- **Label vector**: title only (fast dedup cue)
+	- **Context vector**: title + distilled summary (routing/search)
 
 ### Folder-Path Index
 - Representation per folder path:
-  - **Centroid vector**: mean of member concept context vectors
-  - **Exemplar set**: small rotating set of representative items
-  - **Lexical footprint**: key tokens/phrases
-  - **Metadata**: parent(s), depth, size, variance, last_updated, description
+	- **Centroid vector**: mean of member concept context vectors
+	- **Exemplar set**: small rotating set of representative items
+	- **Lexical footprint**: key tokens/phrases
+	- **Metadata**: parent(s), depth, size, variance, last_updated, description
 
 ## Poly-Hierarchy & Paths (DAG)
 
@@ -200,13 +200,13 @@ Convert noisy OCR'd study snippets into durable Concept Artifacts, automatically
 
 ```typescript
 const THRESHOLDS = {
-  HOME_PLACEMENT_HIGH_CONF: 0.82,
-  UNSORTED_FALLBACK: 0.65,
-  AMBIGUITY_BAND: [0.65, 0.82], // → rerank/LLM
-  CROSS_LINK_DELTA: 0.03,
-  CROSS_LINK_MIN_ABSOLUTE: 0.79,
-  FOLDER_MERGE_CANDIDATES: 0.90, // centroid sim + member overlap
-  MAX_FOLDER_DEPTH: 4
+	HOME_PLACEMENT_HIGH_CONF: 0.82,
+	UNSORTED_FALLBACK: 0.65,
+	AMBIGUITY_BAND: [0.65, 0.82], // → rerank/LLM
+	CROSS_LINK_DELTA: 0.03,
+	CROSS_LINK_MIN_ABSOLUTE: 0.79,
+	FOLDER_MERGE_CANDIDATES: 0.90, // centroid sim + member overlap
+	MAX_FOLDER_DEPTH: 4
 };
 ```
 

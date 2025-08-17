@@ -22,28 +22,24 @@ import { z } from 'zod';
  */
 const UuidSchema = z.string().uuid();
 
-/**
- * ISO timestamp string or Date object
- */
-const TimestampSchema = z.union([z.string().datetime(), z.date()]);
 
 /**
  * Entry in a batch - represents a single captured text snippet
  */
 export const EntrySchema = z.object({
-  text: z.string().min(1),
+  text: z.string().min(1, "Text cannot be empty"),
   timestamp: z.date(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
  * Session markers for tracking capture sessions
  */
 export const SessionMarkerSchema = z.object({
-  sessionId: z.string().min(1),
+  sessionId: z.string().min(1, "Session ID cannot be empty"),
   startTime: z.date(),
   endTime: z.date().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 // =============================================================================
@@ -56,8 +52,8 @@ export const SessionMarkerSchema = z.object({
  */
 export const BatchSchema = z.object({
   batchId: UuidSchema,
-  window: z.string().min(1),
-  topic: z.string().min(1),
+  window: z.string().min(1, "Window cannot be empty"),
+  topic: z.string().min(1, "Topic cannot be empty"),
   entries: z.array(EntrySchema),
   sessionMarkers: SessionMarkerSchema.optional(),
   createdAt: z.date(),
@@ -67,8 +63,8 @@ export const BatchSchema = z.object({
  * Source information for tracking data provenance
  */
 export const SourceInfoSchema = z.object({
-  window: z.string().min(1),
-  topic: z.string().min(1),
+  window: z.string().min(1, "Window cannot be empty"),
+  topic: z.string().min(1, "Topic cannot be empty"),
   batchId: UuidSchema,
   entryCount: z.number().int().positive(),
   uri: z.string().url().optional(),
@@ -82,17 +78,29 @@ export const SourceInfoSchema = z.object({
  * Concept candidate - normalized and prepared for routing
  */
 export const ConceptCandidateSchema = z.object({
-  candidateId: z.string().min(1), // Deterministic ID
+  candidateId: z.string().min(1, "Field cannot be empty"), // Deterministic ID
   batchId: UuidSchema,
   index: z.number().int().nonnegative(),
-  rawText: z.string().min(1),
-  normalizedText: z.string().min(1),
-  contentHash: z.string().min(1),
+  rawText: z.string().min(1, "Field cannot be empty"),
+  normalizedText: z.string().min(1, "Field cannot be empty"),
+  contentHash: z.string().min(1, "Field cannot be empty"),
   source: SourceInfoSchema,
   titleHint: z.string().optional(),
   keyTerms: z.array(z.string()).optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   createdAt: z.date(),
+});
+
+/**
+ * Distilled content from LLM enrichment
+ * This is the output of the DISTILL step before EMBED
+ */
+export const DistilledContentSchema = z.object({
+  title: z.string().min(1, "Title cannot be empty").max(100, "Title too long"),
+  summary: z.string().min(50, "Summary too short").max(500),
+  contentHash: z.string().min(1, "Field cannot be empty"),
+  cached: z.boolean().optional(),
+  distilledAt: z.date().optional(),
 });
 
 // =============================================================================
@@ -103,8 +111,8 @@ export const ConceptCandidateSchema = z.object({
  * Content of a concept artifact
  */
 export const ContentSchema = z.object({
-  original: z.string().min(1),
-  normalized: z.string().min(1),
+  original: z.string().min(1, "Field cannot be empty"),
+  normalized: z.string().min(1, "Field cannot be empty"),
   enhancedSummary: z.string().optional(),
   quizSeeds: z.array(z.string()).optional(),
 });
@@ -113,9 +121,9 @@ export const ContentSchema = z.object({
  * Routing decision information
  */
 export const RoutingInfoSchema = z.object({
-  path: z.string().min(1),
+  path: z.string().min(1, "Field cannot be empty"),
   confidence: z.number().min(0).max(1),
-  method: z.string().min(1),
+  method: z.string().min(1, "Field cannot be empty"),
   rationale: z.string().optional(),
   alternatives: z.array(z.object({
     path: z.string(),
@@ -128,7 +136,7 @@ export const RoutingInfoSchema = z.object({
  */
 export const ProvenanceSchema = z.object({
   source: SourceInfoSchema,
-  sessionId: z.string().min(1),
+  sessionId: z.string().min(1, "Session ID cannot be empty"),
   capturedAt: z.date(),
   processedAt: z.date().optional(),
 });
@@ -137,10 +145,10 @@ export const ProvenanceSchema = z.object({
  * Model information for reproducibility
  */
 export const ModelInfoSchema = z.object({
-  classifier: z.string().min(1),
-  embedding: z.string().min(1),
-  version: z.string().min(1),
-  parameters: z.record(z.unknown()).optional(),
+  classifier: z.string().min(1, "Field cannot be empty"),
+  embedding: z.string().min(1, "Field cannot be empty"),
+  version: z.string().min(1, "Field cannot be empty"),
+  parameters: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**
@@ -148,9 +156,9 @@ export const ModelInfoSchema = z.object({
  */
 export const AuditInfoSchema = z.object({
   createdAt: z.date(),
-  createdBy: z.string().min(1),
+  createdBy: z.string().min(1, "Field cannot be empty"),
   lastModified: z.date(),
-  modifiedBy: z.string().min(1),
+  modifiedBy: z.string().min(1, "Field cannot be empty"),
   version: z.number().int().positive(),
   changeLog: z.array(z.object({
     timestamp: z.date(),
@@ -161,13 +169,27 @@ export const AuditInfoSchema = z.object({
 });
 
 /**
+ * Vector embeddings for the concept
+ * Two-view approach: title vector (fast dedup) + context vector (routing)
+ */
+export const VectorEmbeddingsSchema = z.object({
+  titleVector: z.array(z.number()), // Fast dedup/lookups
+  contextVector: z.array(z.number()), // Primary for routing/search
+  contentHash: z.string().min(1, "Field cannot be empty"),
+  model: z.string().min(1, "Field cannot be empty"),
+  dimensions: z.number().int().positive(),
+  cached: z.boolean().optional(),
+  embeddedAt: z.date().optional(),
+});
+
+/**
  * Complete concept artifact - the final output of the pipeline
  */
 export const ConceptArtifactSchema = z.object({
-  artifactId: z.string().min(1), // Deterministic ID
-  candidateId: z.string().min(1),
-  title: z.string().min(1).max(100),
-  summary: z.string().min(50).max(500),
+  artifactId: z.string().min(1, "Field cannot be empty"), // Deterministic ID
+  candidateId: z.string().min(1, "Field cannot be empty"),
+  title: z.string().min(1, "Title cannot be empty").max(100, "Title too long"),
+  summary: z.string().min(50, "Summary too short").max(500),
   content: ContentSchema,
   routing: RoutingInfoSchema,
   provenance: ProvenanceSchema,
@@ -178,8 +200,8 @@ export const ConceptArtifactSchema = z.object({
     score: z.number().min(0).max(1),
     reason: z.string(),
   })).optional(),
-  embedding: z.instanceof(Float32Array).optional(),
-  version: z.string().min(1),
+  embeddings: VectorEmbeddingsSchema.optional(), // Two-vector approach
+  version: z.string().min(1, "Field cannot be empty"),
 });
 
 // =============================================================================
@@ -201,9 +223,9 @@ export const FolderStatsSchema = z.object({
  * Folder manifest - metadata about a folder in the hierarchy
  */
 export const FolderManifestSchema = z.object({
-  folderId: z.string().min(1), // Stable ID
-  path: z.string().min(1),
-  name: z.string().min(1),
+  folderId: z.string().min(1, "Field cannot be empty"), // Stable ID
+  path: z.string().min(1, "Field cannot be empty"),
+  name: z.string().min(1, "Field cannot be empty"),
   description: z.string().optional(),
   depth: z.number().int().min(0).max(4),
   provisional: z.boolean(),
@@ -235,7 +257,7 @@ export const PlacementScoreSchema = z.object({
  * Routing decision result
  */
 export const RoutingDecisionSchema = z.object({
-  path: z.string().min(1),
+  path: z.string().min(1, "Field cannot be empty"),
   confidence: z.number().min(0).max(1),
   method: z.enum(['rule-based', 'vector-similarity', 'llm-arbitrated', 'fallback']),
   rationale: z.string().optional(),
@@ -306,7 +328,7 @@ export const ReviewItemSchema = z.object({
  * Complete session manifest
  */
 export const SessionManifestSchema = z.object({
-  sessionId: z.string().min(1),
+  sessionId: z.string().min(1, "Session ID cannot be empty"),
   startTime: z.date(),
   endTime: z.date(),
   batches: z.array(z.object({
@@ -354,7 +376,7 @@ export const AuditEventSchema = z.object({
   entityType: z.string(),
   action: z.string(),
   userId: z.string(),
-  details: z.record(z.unknown()),
+  details: z.record(z.string(), z.unknown()),
   sessionId: z.string().optional(),
 });
 
@@ -382,3 +404,7 @@ export type ReviewReason = z.infer<typeof ReviewReasonSchema>;
 export type ReviewItem = z.infer<typeof ReviewItemSchema>;
 export type SessionManifest = z.infer<typeof SessionManifestSchema>;
 export type AuditEvent = z.infer<typeof AuditEventSchema>;
+
+// New types for corrected pipeline
+export type DistilledContent = z.infer<typeof DistilledContentSchema>;
+export type VectorEmbeddings = z.infer<typeof VectorEmbeddingsSchema>;

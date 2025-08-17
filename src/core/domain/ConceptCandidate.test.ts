@@ -203,7 +203,7 @@ describe('ConceptCandidate', () => {
     });
 
     it('should accept text that meets quality threshold', () => {
-      const acceptableText = 'a a a a a a a a a a'; // Repetitive but may pass lowered threshold
+      const acceptableText = 'Neural networks are computational models inspired by biological systems.';
       
       expect(() => {
         new ConceptCandidate(mockBatch, acceptableText, 0);

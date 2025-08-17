@@ -193,468 +193,435 @@ This roadmap breaks down the Concept Organizer into 10 focused sprints, each del
 
 ---
 
-## Sprint 2: Storage Layer & File Operations (1 week)
-**Goal**: Implement atomic, idempotent file operations and storage repositories
+## Sprint 2: AI-Powered Intelligent Routing (2 weeks)
+**Goal**: Implement the corrected DISTILL → EMBED → ROUTE pipeline with dependency inversion for swappable AI services
+
+### Architecture Overview - Corrected Pipeline
+This sprint implements the intelligent pipeline from the CONCEPT-ORGANIZER-PLAN:
+
+```
+ConceptCandidate → DISTILL (LLM) → EMBED (title+summary) → ROUTE (vector search)
+```
+
+**Core Components with Dependency Inversion:**
+- **IDistillationService**: Swappable LLM implementations (OpenAI, Local, NoOp)
+- **IEmbeddingService**: Swappable vector implementations (Transformers.js, OpenAI, Local)
+- **IVectorIndexManager**: Qdrant integration with cosine similarity search
+- **ISmartRouter**: Hybrid scoring with confidence thresholds and LLM arbitration
+- **IFolderManager**: Automatic folder creation with provisional status
 
 ### Tasks
-1. **File System Storage Implementation**
-   ```typescript
-   class FileSystemArtifactRepository implements IConceptArtifactRepository {
-     constructor(
-       private readonly basePath: string,
-       private readonly fileOps: IFileOperations
-     ) {}
 
-     async save(artifact: ConceptArtifact): Promise<void> {
-       // 1. Validate artifact
-       // 2. Compute file path
-       // 3. Atomic write (temp → rename)
-       // 4. Update manifest
-       // 5. Append to audit log
-     }
+#### 1. **DistillationService Implementation (NEW - was missing!)**
+```typescript
+// Dependency inversion interface
+interface IDistillationService {
+  distill(candidate: ConceptCandidate): Promise<DistilledContent>;
+  isEnabled(): boolean;
+}
 
-     private async atomicWrite(path: string, content: string): Promise<void> {
-       const tempPath = `${path}.tmp.${Date.now()}`;
-       try {
-         await fs.writeFile(tempPath, content, { flag: 'wx' });
-         await fs.rename(tempPath, path);
-       } catch (error) {
-         await fs.unlink(tempPath).catch(() => {});
-         throw error;
-       }
-     }
-   }
-   ```
+interface DistilledContent {
+  title: string;
+  summary: string;
+  contentHash: string;  // For caching
+}
 
-2. **Audit Log Service**
-   ```typescript
-   class AuditLogService implements IAuditLog {
-     private currentFile: string;
-     private writer: fs.WriteStream;
+// OpenAI implementation for API-based distillation
+class OpenAIDistillationService implements IDistillationService {
+  constructor(
+    private readonly apiKey: string,
+    private readonly cache: IContentCache
+  ) {}
+  
+  async distill(candidate: ConceptCandidate): Promise<DistilledContent> {
+    // Check cache first
+    const cached = await this.cache.get(candidate.contentHash);
+    if (cached) return cached;
+    
+    // Call OpenAI with tiny prompt
+    const response = await this.openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [{
+        role: "system", 
+        content: "Extract a concise title (max 100 chars) and 2-5 sentence summary from this text. Return as JSON."
+      }, {
+        role: "user",
+        content: candidate.normalizedText
+      }],
+      response_format: { type: "json_object" },
+      max_tokens: 200
+    });
+    
+    const result = JSON.parse(response.choices[0].message.content);
+    const distilled = {
+      title: result.title,
+      summary: result.summary,
+      contentHash: candidate.contentHash
+    };
+    
+    // Cache result
+    await this.cache.set(candidate.contentHash, distilled);
+    return distilled;
+  }
+  
+  isEnabled(): boolean {
+    return true;
+  }
+}
 
-     async append(event: AuditEvent): Promise<void> {
-       // Append-only JSONL
-       // Rotate daily
-       // Never lose events
-     }
+// No-op implementation for LLM-OFF mode
+class NoOpDistillationService implements IDistillationService {
+  async distill(candidate: ConceptCandidate): Promise<DistilledContent> {
+    // Fallback: extract title from first sentence, use full text as summary
+    const sentences = candidate.normalizedText.split(/[.!?]+/);
+    const title = sentences[0]?.substring(0, 100) || "Concept";
+    
+    return {
+      title: title.trim(),
+      summary: candidate.normalizedText.substring(0, 500),
+      contentHash: candidate.contentHash
+    };
+  }
+  
+  isEnabled(): boolean {
+    return false;
+  }
+}
+```
 
-     private async rotate(): Promise<void> {
-       // Close current, open new with date stamp
-     }
-   }
-   ```
+#### 2. **EmbeddingService Implementation (Corrected Input)**
+```typescript
+// Dependency inversion interface
+interface IEmbeddingService {
+  generateTitleVector(title: string): Promise<Float32Array>;      // Fast dedup
+  generateContextVector(titleAndSummary: string): Promise<Float32Array>; // Routing
+  embedBatch(texts: string[]): Promise<Float32Array[]>;
+}
 
-3. **Session Manifest Manager**
-   ```typescript
-   class SessionManifestManager {
-     async startSession(sessionId: string): Promise<void>;
-     async recordBatch(batch: Batch): Promise<void>;
-     async recordArtifact(artifact: ConceptArtifact): Promise<void>;
-     async closeSession(): Promise<SessionManifest>;
-   }
-   ```
+// Local implementation using Transformers.js
+class TransformersEmbeddingService implements IEmbeddingService {
+  private pipeline: any;
+  
+  async initialize(): Promise<void> {
+    const { pipeline } = await import('@xenova/transformers');
+    this.pipeline = await pipeline('feature-extraction', 'all-MiniLM-L6-v2');
+  }
+  
+  async generateTitleVector(title: string): Promise<Float32Array> {
+    const output = await this.pipeline(title, { pooling: 'mean', normalize: true });
+    return new Float32Array(output.data);
+  }
+  
+  async generateContextVector(titleAndSummary: string): Promise<Float32Array> {
+    const output = await this.pipeline(titleAndSummary, { pooling: 'mean', normalize: true });
+    return new Float32Array(output.data);
+  }
+  
+  async embedBatch(texts: string[]): Promise<Float32Array[]> {
+    const outputs = await this.pipeline(texts, { pooling: 'mean', normalize: true });
+    return outputs.map(output => new Float32Array(output.data));
+  }
+}
 
-4. **Path Alias Map**
-   ```typescript
-   class PathAliasMap {
-     async addAlias(oldPath: string, newPath: string): Promise<void>;
-     async resolve(path: string): Promise<string>;
-     async getAllAliases(): Promise<Map<string, string>>;
-   }
-   ```
+// OpenAI implementation for API-based embeddings
+class OpenAIEmbeddingService implements IEmbeddingService {
+  constructor(private readonly apiKey: string) {}
+  
+  async generateTitleVector(title: string): Promise<Float32Array> {
+    const response = await this.openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: title
+    });
+    return new Float32Array(response.data[0].embedding);
+  }
+  
+  async generateContextVector(titleAndSummary: string): Promise<Float32Array> {
+    const response = await this.openai.embeddings.create({
+      model: "text-embedding-3-small", 
+      input: titleAndSummary
+    });
+    return new Float32Array(response.data[0].embedding);
+  }
+}
+```
+
+#### 2. **Qdrant Vector Index Integration**
+```typescript
+class QdrantVectorIndexManager {
+  private client: QdrantClient;
+  
+  async initializeCollections(): Promise<void> {
+    // Create concept-artifacts collection (768-dim)
+    await this.client.createCollection('concept-artifacts', {
+      vectors: { size: 768, distance: 'Cosine' }
+    });
+    
+    // Create folder-centroids collection (768-dim)  
+    await this.client.createCollection('folder-centroids', {
+      vectors: { size: 768, distance: 'Cosine' }
+    });
+  }
+  
+  async addConcept(artifact: ConceptArtifact, embedding: Float32Array): Promise<void> {
+    await this.client.upsert('concept-artifacts', {
+      points: [{
+        id: artifact.artifactId,
+        vector: Array.from(embedding),
+        payload: {
+          path: artifact.routing.path,
+          title: artifact.title,
+          createdAt: artifact.audit.createdAt,
+          contentHash: this.computeHash(artifact.content.normalized)
+        }
+      }]
+    });
+  }
+  
+  async searchSimilarFolders(
+    queryEmbedding: Float32Array,
+    limit: number = 10
+  ): Promise<FolderMatch[]> {
+    const results = await this.client.search('folder-centroids', {
+      vector: Array.from(queryEmbedding),
+      limit,
+      with_payload: true
+    });
+    
+    return results.map(r => ({
+      path: r.payload.path,
+      score: r.score,
+      centroid: new Float32Array(r.vector),
+      stats: r.payload.stats
+    }));
+  }
+}
+```
+
+#### 3. **Smart Router with Corrected Pipeline (DISTILL → EMBED → ROUTE)**
+```typescript
+interface ISmartRouter {
+  route(candidate: ConceptCandidate): Promise<RoutingDecision>;
+}
+
+class SmartRouter implements ISmartRouter {
+  constructor(
+    private readonly distillationService: IDistillationService,
+    private readonly embeddingService: IEmbeddingService,
+    private readonly vectorIndex: IVectorIndexManager,
+    private readonly llmService: ILLMService,
+    private readonly thresholds: RoutingThresholds
+  ) {}
+  
+  async route(candidate: ConceptCandidate): Promise<RoutingDecision> {
+    // 1. DISTILL: Get title + summary from LLM (or fallback)
+    const distilled = await this.distillationService.distill(candidate);
+    
+    // 2. EMBED: Generate vectors from enriched content
+    const titleVector = await this.embeddingService.generateTitleVector(distilled.title);
+    const contextVector = await this.embeddingService.generateContextVector(
+      `${distilled.title} ${distilled.summary}`
+    );
+    
+    // 3. ROUTE: Find similar folders using context vector
+    const folderMatches = await this.vectorIndex.searchSimilarFolders(contextVector, 10);
+    
+    // 4. Score placement options with hybrid algorithm
+    const placementScores = await this.computePlacementScores(
+      distilled, 
+      folderMatches, 
+      contextVector
+    );
+    
+    // 5. Make routing decision based on confidence thresholds
+    return this.makeRoutingDecision(placementScores, candidate, distilled);
+  }
+  
+  private async computePlacementScores(
+    candidate: ConceptCandidate,
+    folders: FolderMatch[],
+    embedding: Float32Array
+  ): Promise<PlacementScore[]> {
+    return folders.map(folder => {
+      // Hybrid scoring: centroid + exemplar + lexical + penalties
+      const centroidSim = this.cosineSimilarity(embedding, folder.centroid);
+      const exemplarSim = this.computeExemplarSimilarity(candidate, folder);
+      const lexicalSim = this.computeLexicalOverlap(candidate, folder);
+      const depthPenalty = Math.pow(0.95, folder.path.split('/').length);
+      
+      const score = (centroidSim * 0.5) + (exemplarSim * 0.3) + (lexicalSim * 0.2) * depthPenalty;
+      
+      return { folder, score, centroidSim, exemplarSim, lexicalSim };
+    }).sort((a, b) => b.score - a.score);
+  }
+  
+  private async makeRoutingDecision(
+    scores: PlacementScore[],
+    candidate: ConceptCandidate
+  ): Promise<RoutingDecision> {
+    const topScore = scores[0];
+    const runnerUpScore = scores[1];
+    
+    // High confidence: clear winner
+    if (topScore.score >= this.thresholds.HIGH_CONFIDENCE) {
+      return {
+        path: topScore.folder.path,
+        confidence: topScore.score,
+        method: 'embedding-centroid',
+        alternatives: this.buildAlternatives(scores.slice(1, 4))
+      };
+    }
+    
+    // Low confidence: send to Unsorted
+    if (topScore.score <= this.thresholds.LOW_CONFIDENCE) {
+      return {
+        path: `Unsorted/${candidate.source.topic}`,
+        confidence: topScore.score,
+        method: 'unsorted-fallback',
+        alternatives: this.buildAlternatives(scores.slice(0, 3))
+      };
+    }
+    
+    // Ambiguous: use LLM arbitration
+    return this.llmArbitration(candidate, scores.slice(0, 5));
+  }
+}
+```
+
+#### 4. **Intelligent Folder Manager**
+```typescript
+class FolderManager {
+  constructor(
+    private readonly folderRepo: IFolderRepository,
+    private readonly vectorIndex: QdrantVectorIndexManager
+  ) {}
+  
+  async ensureFolderExists(path: FolderPath): Promise<FolderManifest> {
+    let manifest = await this.folderRepo.findByPath(path);
+    
+    if (!manifest) {
+      // Create new folder with provisional status
+      manifest = {
+        folderId: this.generateFolderId(path),
+        path: path.toString(),
+        name: path.leaf,
+        provisional: true, // Will be renamed by background job
+        depth: path.depth,
+        stats: { artifactCount: 0, lastUpdated: new Date(), size: 0 },
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      await this.folderRepo.create(path, manifest);
+    }
+    
+    return manifest;
+  }
+  
+  async updateFolderCentroid(path: FolderPath, newArtifact: ConceptArtifact): Promise<void> {
+    // Get all artifacts in folder
+    const artifacts = await this.artifactRepo.findByPath(path);
+    
+    // Compute new centroid from all embeddings
+    const embeddings = await Promise.all(
+      artifacts.map(a => this.embeddingService.generateContextVector(a.content.normalized))
+    );
+    
+    const centroid = this.computeCentroid(embeddings);
+    
+    // Update vector index
+    await this.vectorIndex.updateFolderCentroid(path, centroid, {
+      artifactCount: artifacts.length,
+      avgConfidence: this.computeAverageConfidence(artifacts),
+      lastUpdated: new Date()
+    });
+  }
+}
+```
+
+#### 5. **Content Deduplication & Cross-Links**
+```typescript
+class DeduplicationService {
+  async checkForDuplicates(
+    candidate: ConceptCandidate,
+    embedding: Float32Array
+  ): Promise<DeduplicationResult> {
+    // 1. Fast exact match check using content hash
+    const exactMatch = await this.artifactRepo.findByContentHash(
+      candidate.contentHash
+    );
+    if (exactMatch.length > 0) {
+      return { isDuplicate: true, type: 'exact', existing: exactMatch[0] };
+    }
+    
+    // 2. Semantic similarity check using title vector
+    const titleEmbedding = await this.embeddingService.generateTitleVector(
+      candidate.titleHint || candidate.normalizedText.substring(0, 100)
+    );
+    
+    const similar = await this.vectorIndex.searchSimilarConcepts(
+      titleEmbedding, 
+      5,
+      0.95 // High threshold for near-duplicates
+    );
+    
+    if (similar.length > 0) {
+      return { 
+        isDuplicate: true, 
+        type: 'semantic', 
+        existing: similar[0],
+        similarity: similar[0].score 
+      };
+    }
+    
+    return { isDuplicate: false };
+  }
+  
+  async generateCrossLinks(
+    artifact: ConceptArtifact,
+    routingScores: PlacementScore[]
+  ): Promise<CrossLink[]> {
+    const crossLinks: CrossLink[] = [];
+    const primaryScore = routingScores[0].score;
+    
+    // Add cross-links for strong runner-ups
+    for (let i = 1; i < routingScores.length; i++) {
+      const score = routingScores[i];
+      const delta = primaryScore - score.score;
+      
+      if (delta <= this.thresholds.CROSS_LINK_DELTA && 
+          score.score >= this.thresholds.CROSS_LINK_MIN_ABSOLUTE) {
+        crossLinks.push({
+          targetPath: score.folder.path,
+          score: score.score,
+          reason: 'strong-alternative-placement'
+        });
+      }
+    }
+    
+    return crossLinks;
+  }
+}
+```
 
 ### Tests Required
-- [ ] Atomic write tests (concurrent writes, failures)
-- [ ] Idempotency tests (duplicate saves)
-- [ ] Audit log rotation tests
-- [ ] Session manifest integrity tests
-- [ ] Path alias resolution tests
+- [ ] **EmbeddingService**: Vector generation, batch processing, local model loading
+- [ ] **VectorIndexManager**: CRUD operations, centroid updates, search accuracy
+- [ ] **SmartRouter**: Placement scoring, threshold logic, LLM arbitration
+- [ ] **FolderManager**: Automatic folder creation, centroid computation
+- [ ] **Deduplication**: Exact/semantic duplicate detection, cross-link generation
+- [ ] **Integration**: End-to-end intelligent pipeline flow
 
 ### Deliverables
-- [ ] File system storage working
-- [ ] Atomic writes guaranteed
-- [ ] Audit logging operational
-- [ ] Session manifests recording
+- [ ] Local embedding generation using Transformers.js
+- [ ] Qdrant vector search for folder matching
+- [ ] Intelligent routing with 70%+ high-confidence placements
+- [ ] Automatic folder structure creation and maintenance
+- [ ] Content deduplication with cross-linking
+- [ ] LLM arbitration for ambiguous cases
 
 ---
 
-## Sprint 3: Basic Pipeline Without AI (1 week)
-**Goal**: Build core pipeline that processes batches into artifacts using simple rules
-
-### Tasks
-1. **Session Assembler**
-   ```typescript
-   class SessionAssembler {
-     constructor(
-       private readonly textPreprocessor: ITextPreprocessor,
-       private readonly config: AssemblerConfig
-     ) {}
-
-     async assembleCandidates(batch: Batch): Promise<ConceptCandidate[]> {
-       // 1. Normalize text (whitespace, encoding)
-       // 2. Remove boilerplate
-       // 3. Stitch adjacent snippets
-       // 4. Reject too short/noisy
-       // 5. Compute content hashes
-       return candidates;
-     }
-   }
-   ```
-
-2. **Simple Router (Rule-Based)**
-   ```typescript
-   class SimpleRouter implements IRouter {
-     async route(candidate: ConceptCandidate): Promise<RoutingDecision> {
-       // Start with keyword-based routing
-       // Programming keywords → Programming folder
-       // Math symbols → Mathematics folder
-       // Default → Unsorted/<topic>
-       return {
-         path: this.determinePathByRules(candidate),
-         confidence: 0.5,
-         method: 'rule-based'
-       };
-     }
-   }
-   ```
-
-3. **Artifact Builder**
-   ```typescript
-   class ArtifactBuilder {
-     build(
-       candidate: ConceptCandidate,
-       routing: RoutingDecision
-     ): ConceptArtifact {
-       // Generate deterministic ID
-       // Create artifact structure
-       // Add metadata and provenance
-       return artifact;
-     }
-   }
-   ```
-
-4. **Pipeline Orchestrator**
-   ```typescript
-   class PipelineOrchestrator {
-     async processBatch(batch: Batch): Promise<ProcessingResult> {
-       // 1. Assemble candidates
-       const candidates = await this.assembler.assembleCandidates(batch);
-       
-       // 2. Route each candidate
-       const routingDecisions = await Promise.all(
-         candidates.map(c => this.router.route(c))
-       );
-       
-       // 3. Build artifacts
-       const artifacts = candidates.map((c, i) => 
-         this.builder.build(c, routingDecisions[i])
-       );
-       
-       // 4. Save artifacts
-       await Promise.all(
-         artifacts.map(a => this.repository.save(a))
-       );
-       
-       // 5. Update audit log
-       await this.auditLog.recordBatch(batch, artifacts);
-       
-       return { processed: artifacts.length, errors: [] };
-     }
-   }
-   ```
-
-### Tests Required
-- [ ] End-to-end pipeline tests
-- [ ] Assembler normalization tests
-- [ ] Router rule tests
-- [ ] Builder determinism tests
-- [ ] Orchestrator error handling tests
-
-### Deliverables
-- [ ] Basic pipeline processing batches
-- [ ] Artifacts being created and saved
-- [ ] Simple routing working
-- [ ] Audit trail complete
-
----
-
-## Sprint 4: Vector Search & Intelligent Routing (1 week)
-**Goal**: Add embeddings, vector search, and similarity-based routing
-
-### Tasks
-1. **Embedding Service**
-   ```typescript
-   interface IEmbeddingService {
-     embed(text: string): Promise<Float32Array>;
-     embedBatch(texts: string[]): Promise<Float32Array[]>;
-   }
-
-   class LocalEmbeddingService implements IEmbeddingService {
-     private model: any; // Transformers.js model
-     
-     async initialize(): Promise<void> {
-       // Load local model
-     }
-     
-     async embed(text: string): Promise<Float32Array> {
-       // Generate embedding
-       // Normalize vector
-       return normalized;
-     }
-   }
-   ```
-
-2. **Vector Index Manager**
-   ```typescript
-   class VectorIndexManager {
-     private conceptIndex: IVectorIndex;
-     private folderIndex: IVectorIndex;
-     
-     async addConcept(
-       artifact: ConceptArtifact,
-       embedding: Float32Array
-     ): Promise<void> {
-       // Add to concept index with metadata
-     }
-     
-     async updateFolderCentroid(
-       path: FolderPath,
-       artifacts: ConceptArtifact[]
-     ): Promise<void> {
-       // Compute mean of member embeddings
-       // Update folder index
-     }
-     
-     async searchFolders(
-       query: Float32Array,
-       k: number
-     ): Promise<ScoredFolder[]> {
-       // ANN search on folder index
-       return topK;
-     }
-   }
-   ```
-
-3. **Qdrant Integration**
-   ```typescript
-   class QdrantVectorIndex implements IVectorIndex {
-     private client: QdrantClient;
-     
-     async initialize(): Promise<void> {
-       // Create collection if not exists
-       // Configure HNSW parameters
-     }
-     
-     async upsert(
-       id: string,
-       vector: Float32Array,
-       payload: Record<string, any>
-     ): Promise<void> {
-       // Add or update vector
-     }
-     
-     async search(
-       query: Float32Array,
-       limit: number,
-       filter?: Filter
-     ): Promise<SearchResult[]> {
-       // Perform ANN search
-     }
-   }
-   ```
-
-4. **Smart Router**
-   ```typescript
-   class SmartRouter implements IRouter {
-     constructor(
-       private readonly embeddingService: IEmbeddingService,
-       private readonly vectorIndex: VectorIndexManager,
-       private readonly thresholds: RoutingThresholds
-     ) {}
-     
-     async route(candidate: ConceptCandidate): Promise<RoutingDecision> {
-       // 1. Generate embedding for candidate
-       const embedding = await this.embeddingService.embed(
-         `${candidate.title} ${candidate.summary}`
-       );
-       
-       // 2. Search for similar folders
-       const topFolders = await this.vectorIndex.searchFolders(
-         embedding,
-         10
-       );
-       
-       // 3. Apply scoring algorithm
-       const scores = this.computePlacementScores(
-         candidate,
-         topFolders,
-         embedding
-       );
-       
-       // 4. Make routing decision
-       return this.makeDecision(scores);
-     }
-     
-     private computePlacementScores(
-       candidate: ConceptCandidate,
-       folders: ScoredFolder[],
-       embedding: Float32Array
-     ): PlacementScore[] {
-       // Centroid similarity
-       // Exemplar similarity
-       // Lexical overlap
-       // Depth/variance penalties
-     }
-   }
-   ```
-
-### Tests Required
-- [ ] Embedding generation tests
-- [ ] Vector index CRUD tests
-- [ ] Centroid computation tests
-- [ ] Routing threshold tests
-- [ ] Search accuracy tests
-
-### Deliverables
-- [ ] Embeddings generated for all content
-- [ ] Vector search operational
-- [ ] Smart routing based on similarity
-- [ ] Folder centroids maintained
-
----
-
-## Sprint 5: Deduplication & Cross-Links (1 week)
-**Goal**: Prevent duplicates and establish cross-references
-
-### Tasks
-1. **Deduplication Service**
-   ```typescript
-   class DeduplicationService {
-     constructor(
-       private readonly vectorIndex: IVectorIndex,
-       private readonly thresholds: DedupThresholds
-     ) {}
-     
-     async checkDuplicate(
-       candidate: ConceptCandidate,
-       embedding: Float32Array
-     ): Promise<DuplicateCheckResult> {
-       // 1. Search for similar concepts
-       const similar = await this.vectorIndex.searchConcepts(
-         embedding,
-         5
-       );
-       
-       // 2. Check content hash first (exact match)
-       const exactMatch = similar.find(
-         s => s.contentHash === candidate.contentHash
-       );
-       if (exactMatch) {
-         return { isDuplicate: true, type: 'exact', existing: exactMatch };
-       }
-       
-       // 3. Check semantic similarity
-       const nearDuplicate = similar.find(
-         s => s.score > this.thresholds.nearDuplicate
-       );
-       if (nearDuplicate) {
-         return { isDuplicate: true, type: 'semantic', existing: nearDuplicate };
-       }
-       
-       return { isDuplicate: false };
-     }
-   }
-   ```
-
-2. **Cross-Link Manager**
-   ```typescript
-   class CrossLinkManager {
-     async evaluateCrossLinks(
-       artifact: ConceptArtifact,
-       routingScores: PlacementScore[]
-     ): Promise<CrossLink[]> {
-       const crossLinks: CrossLink[] = [];
-       
-       // Check runner-up scores
-       for (let i = 1; i < routingScores.length; i++) {
-         const score = routingScores[i];
-         const delta = routingScores[0].score - score.score;
-         
-         if (delta <= this.thresholds.crossLinkDelta &&
-             score.score >= this.thresholds.crossLinkMinScore) {
-           crossLinks.push({
-             targetPath: score.folder.path,
-             score: score.score,
-             reason: 'strong-secondary-match'
-           });
-         }
-       }
-       
-       return crossLinks.slice(0, this.config.maxCrossLinks);
-     }
-     
-     async applyCrossLinks(
-       artifact: ConceptArtifact,
-       crossLinks: CrossLink[]
-     ): Promise<void> {
-       // Update artifact with cross-links
-       // Create symlinks or references
-       // Update indices
-     }
-   }
-   ```
-
-3. **Review Queue Service**
-   ```typescript
-   class ReviewQueueService {
-     async addForReview(
-       artifact: ConceptArtifact,
-       reason: ReviewReason
-     ): Promise<void> {
-       const reviewItem: ReviewItem = {
-         id: uuid(),
-         artifactId: artifact.artifactId,
-         artifact,
-         reason,
-         suggestedActions: this.generateSuggestions(artifact, reason),
-         createdAt: new Date(),
-         status: 'pending'
-       };
-       
-       await this.queue.add(reviewItem);
-     }
-     
-     async getNextForReview(): Promise<ReviewItem | null> {
-       return this.queue.getNext({ status: 'pending' });
-     }
-     
-     async resolveReview(
-       itemId: string,
-       action: ReviewAction
-     ): Promise<void> {
-       // Apply the review decision
-       // Update artifact if needed
-       // Mark as resolved
-     }
-   }
-   ```
-
-### Tests Required
-- [ ] Exact duplicate detection tests
-- [ ] Semantic duplicate detection tests
-- [ ] Cross-link evaluation tests
-- [ ] Review queue operations tests
-- [ ] Concurrent dedup tests
-
-### Deliverables
-- [ ] No duplicate artifacts created
-- [ ] Cross-links established
-- [ ] Review queue operational
-- [ ] Dedup metrics tracked
-
----
-
-## Sprint 6: LLM Enhancement Layer (1 week)
+## Sprint 3: LLM Enhancement & Summarization (1 week)
 **Goal**: Add LLM-powered summarization, arbitration, and concept extraction
 
 ### Tasks

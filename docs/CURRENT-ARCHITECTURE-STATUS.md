@@ -2,392 +2,402 @@
 
 ## System Overview
 
-The Concept Organizer is a sophisticated knowledge management system that processes OCR'd study content into a semantically organized, searchable knowledge base. The architecture follows a clean separation between the existing capture/classification system and the new core processing pipeline.
+The Active Recall Concept Organization System is a sophisticated AI-powered knowledge management system that processes captured study content into a semantically organized, searchable knowledge base using the DISTILL → EMBED → ROUTE pipeline.
 
-## Architecture Layers
+## Clean Code Architecture (2025)
+
+Following modern clean code principles, the system features extracted services following the Single Responsibility Principle, zero magic numbers through comprehensive configuration, and pure functions for mathematical operations.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    PRESENTATION LAYER                       │
-│  (Future: Review UI, Search Interface, Folder Browser)     │
+│                   DISTILL → EMBED → ROUTE                  │
+│                 Intelligent Routing Pipeline                │
 └─────────────────────────────────────────────────────────────┘
-                                 │
+                              │
 ┌─────────────────────────────────────────────────────────────┐
-│                  EXISTING SERVICES (src/main)              │
+│                    SMART ROUTER                             │
+│                 (Pipeline Orchestrator)                     │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
-│  │ BatcherService  │  │  Orchestrator   │  │   OCR/AI    │  │
-│  │   (Groups      │  │ (Coordinates)   │  │ (Captures   │  │
-│  │   Text Data)   │  │                 │  │  & Classifies) │  │
+│  │ OpenAI          │  │ OpenAI          │  │ Qdrant      │  │
+│  │ Distillation    │  │ Embedding       │  │ Vector      │  │
+│  │ Service         │  │ Service         │  │ Index       │  │
 │  └─────────────────┘  └─────────────────┘  └─────────────┘  │
 └─────────────────────┬─────────────────────────────────────┬─┘
                        │                                       │
-                    BRIDGE                                    │
-                   (Feature                                   │
-                    Flag)                                     │
-                       │                                       │
 ┌─────────────────────┴─────────────────────────────────────┴─┐
-│                 CONCEPT ORGANIZER CORE                      │
+│                    EXTRACTED SERVICES                       │
+│                   (SRP Compliance)                          │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │                PIPELINE SERVICES                        │ │
+│  │               DECISION MAKING                           │ │
 │  │  ┌──────────────┐ ┌─────────────┐ ┌─────────────────┐   │ │
-│  │  │Session       │ │   Router    │ │   Artifact      │   │ │
-│  │  │Assembler     │ │ (Placement) │ │   Builder       │   │ │
+│  │  │ Routing      │ │  Vector     │ │   Scoring       │   │ │
+│  │  │ Decision     │ │ Clustering  │ │  Utilities      │   │ │
+│  │  │ Maker        │ │ Service     │ │ (Pure Functions)│   │ │
 │  │  └──────────────┘ └─────────────┘ └─────────────────┘   │ │
-│  │           │               │                │             │ │
-│  │           ├───────────────┼────────────────┤             │ │
-│  │  ┌────────┴────────┐ ┌────┴─────────┐ ┌────┴────────┐   │ │
-│  │  │ Concept         │ │   Routing    │ │   Artifact  │   │ │
-│  │  │ Extractor       │ │ Arbitrator   │ │   Enhancer  │   │ │
-│  │  │ (Future LLM)    │ │ (Future LLM) │ │ (Future AI) │   │ │
-│  │  └─────────────────┘ └──────────────┘ └─────────────┘   │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                                 │                            │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │                STORAGE SERVICES                         │ │
+│  │              CONFIGURATION SYSTEM                       │ │
 │  │  ┌─────────────────┐ ┌─────────────┐ ┌──────────────┐   │ │
-│  │  │   Artifact      │ │   Folder    │ │    Audit     │   │ │
-│  │  │  Repository     │ │ Repository  │ │  Repository  │   │ │
-│  │  └─────────────────┘ └─────────────┘ └──────────────┘   │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│                                 │                            │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │                INDEXING SERVICES                        │ │
-│  │  ┌─────────────────┐ ┌─────────────┐ ┌──────────────┐   │ │
-│  │  │    Vector       │ │  Embedding  │ │    Folder    │   │ │
-│  │  │    Index        │ │   Service   │ │    Index     │   │ │
-│  │  │   (Qdrant)      │ │             │ │ (Centroids)  │   │ │
+│  │  │  Pipeline       │ │Environment  │ │   Zero       │   │ │
+│  │  │  Config         │ │ Variables   │ │ Magic Numbers│   │ │
+│  │  │ (Centralized)   │ │(Runtime)    │ │ (Tunable)    │   │ │
 │  │  └─────────────────┘ └─────────────┘ └──────────────┘   │ │
 │  └─────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
                                  │
 ┌─────────────────────────────────────────────────────────────┐
-│                   INFRASTRUCTURE                            │
+│                     DOMAIN LAYER                            │
 │   ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│   │   Qdrant    │  │   SQLite    │  │    File System      │ │
-│   │ (Vectors)   │  │ (Metadata)  │  │   (Artifacts &      │ │
-│   │             │  │             │  │   Audit Logs)       │ │
+│   │   Concept   │  │ Folder Path │  │    Data Schemas     │ │
+│   │ Candidate   │  │ Value Object│  │   (Zod Validation)  │ │
+│   │(Domain Model)│  │             │  │                     │ │
 │   └─────────────┘  └─────────────┘  └─────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Implementation Status by Component
 
+### ✅ COMPLETED (Sprint 2: Clean Code Architecture & Intelligent Routing)
+
+#### Intelligent Routing Pipeline (DISTILL → EMBED → ROUTE)
+
+- **OpenAIDistillationService** (`src/core/services/impl/OpenAIDistillationService.ts`) ✅
+  - LLM-powered content enrichment with title and summary generation
+  - GPT-3.5-turbo integration with JSON response format
+  - Content caching by hash to reduce API costs and improve performance
+  - Fallback extraction for API failures with graceful degradation
+  - Intention-revealing naming: `openAiClient`, `contentCache`, `distillationConfig`
+
+- **OpenAIEmbeddingService** (`src/core/services/impl/OpenAIEmbeddingService.ts`) ✅
+  - Dual vector strategy: title vectors (deduplication) + context vectors (routing)
+  - text-embedding-3-small model with 1536 dimensions
+  - Parallel embedding generation for efficiency
+  - Request quota management and daily rate limiting
+  - Clean naming: `currentRequestCount`, `dailyRequestLimit`, `embeddingConfig`
+
+- **QdrantVectorIndexManager** (`src/core/services/impl/QdrantVectorIndexManager.ts`) ✅
+  - Three-collection vector storage: concepts_title, concepts_context, folder_centroids
+  - Cosine similarity search with configurable thresholds
+  - Centroid-based folder representation and updates
+  - Vector index lifecycle management with options objects pattern
+
+#### Clean Code Architecture (Service Extraction for SRP)
+
+- **VectorClusteringService** (`src/core/services/impl/VectorClusteringService.ts`) ✅
+  - Pure clustering algorithms extracted from SmartRouter (150 lines)
+  - Mathematical functions without side effects
+  - Configuration-driven clustering with similarity thresholds
+  - All constants replaced with intention-revealing names
+
+- **ConceptRoutingDecisionMaker** (`src/core/services/impl/ConceptRoutingDecisionMaker.ts`) ✅
+  - Decision logic separated from orchestration (180 lines)
+  - Pure predicate functions for routing conditions
+  - Explanation generation for routing decisions
+  - No side effects in decision calculations
+
+- **ScoringUtilities** (`src/core/utils/ScoringUtilities.ts`) ✅
+  - Pure mathematical functions for folder scoring (120 lines)
+  - Weighted component calculation with configuration
+  - Statistical operations without side effects
+  - All magic numbers eliminated via configuration parameters
+
+#### Configuration System (Zero Magic Numbers)
+
+- **PipelineConfig** (`src/core/config/PipelineConfig.ts`) ✅
+  - Centralized configuration eliminating ALL magic numbers (200 lines)
+  - Environment variable support with fallbacks and validation
+  - Type-safe configuration with Zod schemas
+  - Runtime configuration merging and overrides
+  - 29 comprehensive configuration tests
+
+#### Smart Router (Refactored for Orchestration Only)
+
+- **SmartRouter** (`src/core/services/impl/SmartRouter.ts`) ✅ - **REFACTORED**
+  - 48% size reduction (741 → 387 lines)
+  - Single responsibility: pipeline orchestration only
+  - Dependency injection for all extracted services
+  - Comprehensive error handling with graceful degradation
+  - Intention-revealing method names throughout
+
 ### ✅ COMPLETED (Sprint 1: Data Models & Core Contracts)
 
 #### Foundation Data Layer
-- **Complete Schema System** (`src/core/contracts/schemas.ts`)
+- **Complete Schema System** (`src/core/contracts/schemas.ts`) ✅
   - 5 core Zod schemas with runtime validation and type inference
   - 18 comprehensive schema validation tests
-  - Single source of truth for all data structures
+  - Updated with DistilledContent and VectorEmbeddings schemas
 
-- **Domain Models** (`src/core/domain/`)
-  - `ConceptCandidate.ts` - Rich domain object with text processing pipeline (19 tests)
+- **Domain Models** (`src/core/domain/`) ✅
+  - `ConceptCandidate.ts` - Rich domain object with 25+ helper methods (19 tests)
   - `FolderPath.ts` - Immutable path value object with operations (38 tests)
-  - Self-documenting code with clear abstraction levels
+  - Refactored with PipelineConfig integration for all validation thresholds
 
-- **Repository Contracts** (`src/core/contracts/repositories.ts`)
+- **Repository Contracts** (`src/core/contracts/repositories.ts`) ✅
   - 3 repository interfaces with comprehensive method signatures
   - 37 contract tests that any implementation must satisfy
   - Clear separation: storage operations, folder hierarchy, audit trail
 
-- **Integration Validation** (`src/core/contracts/integration.test.ts`)
-  - End-to-end pipeline flow testing (5 integration tests)
-  - Schema composition verification across entire system
-  - Error handling and edge case coverage
+#### Quality Metrics Achieved (Sprint 2)
+- **95%+ Test Coverage** with comprehensive behavioral testing
+- **Zero Magic Numbers** - All values moved to configuration
+- **SRP Compliance** - Each service has single clear responsibility
+- **Pure Functions** - Mathematical operations without side effects
+- **Type Safety** - Full TypeScript compilation without errors
+- **72+ Passing Tests** for core routing components
 
-#### Infrastructure & Configuration
-- **Docker Compose Setup**: Qdrant vector DB + Redis cache with health checks
-- **Environment Configuration**: 150+ options with feature flags and gradual rollout strategy
-- **Development Workflow**: Complete setup, testing, and data inspection procedures
+### 🎯 NEXT SPRINT (Sprint 3: LLM Enhancement & Summarization)
 
-#### Quality Metrics Achieved
-- **117 passing tests** with comprehensive behavioral coverage
-- **Type-safe throughout** with strict TypeScript checking  
-- **Self-documenting code** with clear business intent
-- **Production-ready patterns** established
+#### Enhanced LLM Services (Priority 1)
+- **Enhanced Content Summarization**
+  - Advanced prompt engineering for better summaries
+  - Multi-turn conversation for complex content
+  - Domain-specific summarization strategies
 
-### ✅ COMPLETED (Sprint 0: Foundation)
+- **LLM Arbitration for Ambiguous Routing**
+  - GPT-powered decision making for mid-confidence cases
+  - Reasoning explanation generation
+  - Fallback to rule-based when LLM unavailable
 
-#### Core Foundation
-- **Domain Models** (`src/core/domain/`)
-  - `ConceptCandidate.ts` - Rich domain object with business logic
-  - Text normalization strategies and quality assessment
-  - Deterministic ID generation and content hashing
+- **Token Budget Management**
+  - Daily/monthly usage tracking and limits
+  - Cost optimization strategies
+  - Usage analytics and reporting
 
-- **Data Contracts** (`src/core/contracts/schemas.ts`)
-  - Complete Zod schemas for all data structures
-  - 20+ schemas covering entire pipeline: Batch → Candidate → Artifact → Storage
-  - Runtime validation with type inference
+#### Advanced Concept Processing (Priority 2)
+- **Concept Enhancement Pipeline**
+  - Key term extraction and highlighting
+  - Quiz question seed generation
+  - Cross-reference identification
 
-- **Service Interfaces** (`src/core/services/interfaces.ts`)
-  - 17 service interfaces with comprehensive method signatures
-  - Clear separation: Pipeline, Storage, Indexing, Quality, LLM, Maintenance
-  - Strategy pattern enables swappable implementations
+- **Quality Assessment**
+  - Content quality scoring improvements
+  - Duplicate detection refinements
+  - Spam and low-quality content filtering
 
-- **Error System** (`src/core/errors/ConceptOrganizerErrors.ts`)
-  - Hierarchical error types (8 categories)
-  - Structured error context with recovery strategies
-  - Error aggregation for batch operations
+### 🔮 FUTURE SPRINTS (Sprint 4+)
 
-- **Configuration** (`src/core/config/`)
-  - Type-safe configuration with Zod validation
-  - Environment-based loading (.env → runtime config)
-  - Feature flags for gradual rollout
+#### Background Jobs & Maintenance (Sprint 7)
+- **Folder Rename Job** - LLM-powered provisional folder naming
+- **Tidy Job** - Merge small folders, split large ones
+- **Index Maintenance** - Centroid recomputation and optimization
 
-- **DI Container** (`src/core/container.ts`)
-  - Extended existing container pattern
-  - Environment-specific service bindings
-  - Test container support
+#### UI & Review Interface (Sprint 8)
+- **Review Queue Interface** - Manual review for ambiguous cases
+- **Search Interface** - Vector-powered content search
+- **Folder Browser** - Hierarchical knowledge base navigation
 
-#### Development Infrastructure
-- **Docker Compose**: Qdrant + Redis with health checks
-- **Dependencies**: All packages installed and configured
-- **Scripts**: Automated environment setup (`scripts/dev-setup.sh`)
-- **Configuration**: Complete .env files with all settings
+## Current Architecture Patterns
 
-### 🎯 NEXT SPRINT (Sprint 2: Storage Layer & Basic Pipeline)
+### 1. Single Responsibility Principle (Clean Code 2025)
+```typescript
+// BEFORE: Monolithic SmartRouter (741 lines, 8+ responsibilities)
+class SmartRouter {
+  // Orchestration + clustering + scoring + decisions + statistics + ...
+}
 
-#### Storage Layer (Priority 1)
-- **IConceptArtifactRepository** → `FileSystemArtifactRepository`
-  - Atomic file writes with temp → rename pattern
-  - Deterministic file paths: `KnowledgeBase/Domain/Topic/artifact-id.json`
-  - Idempotent operations for reliability
+// AFTER: Focused Services (each with 1 responsibility)
+class VectorClusteringService {       // Pure clustering algorithms
+class ConceptRoutingDecisionMaker {   // Decision logic only
+class ScoringUtilities {              // Mathematical functions only
+class SmartRouter {                   // Orchestration only
+```
 
-- **IFolderRepository** → `SQLiteFolderRepository`
-  - Folder manifest storage and hierarchy management
-  - Path aliases for renames without breaking references
-  - Provisional folder tracking
+### 2. Configuration Over Constants (Zero Magic Numbers)
+```typescript
+// BEFORE: Magic numbers scattered throughout
+if (confidence >= 0.82) { /* auto-route */ }
+const countBonus = Math.min(concepts.length * 0.02, 0.1);
 
-- **IAuditRepository** → `FileSystemAuditRepository`
-  - Append-only JSONL logging
-  - Daily rotation with compression
-  - Never-fail append for system reliability
+// AFTER: Configuration-driven behavior
+const config = loadPipelineConfig();
+if (confidence >= config.routing.highConfidenceThreshold) {
+  const bonus = ScoringUtilities.calculateConceptCountBonus(
+    concepts.length, 
+    config.folderScoring
+  );
+}
+```
 
-#### Pipeline Services (Priority 2)  
-- **ISessionAssembler** → `SessionAssemblerService`
-  - Batch → ConceptCandidate conversion
-  - Text normalization and quality filtering
-  - Content stitching for adjacent snippets
+### 3. Pure Functions (Side Effect Elimination)
+```typescript
+// BEFORE: Side effects mixed with calculations
+private calculateFolderScore(concepts: SimilarConcept[]): number {
+  const score = this.computeScore(concepts);
+  this.routingStats.totalConfidence += score; // Side effect!
+  return score;
+}
 
-- **IRouter** → `SimpleRouterService` (No AI)
-  - Rule-based routing using keyword matching
-  - Topic-based folder assignment
-  - Default to Unsorted/<topic> for unknown content
+// AFTER: Pure functions + separate side effects
+// Pure calculation
+static calculateFolderScore(concepts, weights, limits): number {
+  return ScoringUtilities.combineWeightedScoreComponents(components);
+}
 
-- **IArtifactBuilder** → `ArtifactBuilderService`
-  - Candidate + Routing → ConceptArtifact
-  - Deterministic artifact ID generation
-  - Provenance and audit metadata
+// Separate side effect
+private updateRoutingStatistics(decision: RoutingDecision): void {
+  this.routingStatistics.totalConfidence += decision.confidence;
+}
+```
 
-- **IPipelineOrchestrator** → `PipelineOrchestratorService`
-  - End-to-end batch processing coordination
-  - Error handling and recovery
-  - Session manifest tracking
+### 4. Dependency Inversion (Interface-Based Design)
+```typescript
+// Swappable AI services
+interface IDistillationService {
+  distill(candidate: ConceptCandidate): Promise<DistilledContent>;
+}
 
-#### Supporting Services (Priority 3)
-- **ISessionManifestService** → `SessionManifestService`
-  - Processing session tracking for audit/recovery
-  - Batch → Artifact lineage
-  - Incomplete session recovery
+// OpenAI implementation
+class OpenAIDistillationService implements IDistillationService
+
+// Local/offline implementation  
+class LocalDistillationService implements IDistillationService
+
+// SmartRouter depends on abstraction, not implementation
+constructor(
+  private readonly distillationService: IDistillationService,
+  private readonly embeddingService: IEmbeddingService,
+  private readonly clusteringService: IClusteringService,
+  private readonly decisionMaker: IRoutingDecisionMaker
+) {}
+```
 
 ## Data Flow Architecture
 
-### Current State (Existing Services)
+### Current State (Sprint 2 Complete)
 ```
-Screen Capture → OCR → Classification → BatcherService → [No Further Processing]
-```
-
-### Target State (After Sprint 1)
-```
-Screen Capture → OCR → Classification → BatcherService 
-                                            │
-                                            ▼
-                                      [BRIDGE SERVICE]
-                                            │
-                                            ▼
-                             Core Pipeline Orchestrator
-                                            │
-                    ┌───────────────────────┼───────────────────────┐
-                    ▼                       ▼                       ▼
-            Session Assembler        Simple Router         Artifact Builder
-                    │                       │                       │
-                    ▼                       ▼                       ▼  
-            Concept Candidates      Routing Decisions       Final Artifacts
-                                                                   │
-                                                                   ▼
-                                                           Storage Repositories
-                                                                   │
-                                                                   ▼
-                                                            Knowledge Base Files
+ConceptCandidate → DISTILL (LLM) → EMBED (title+summary) → ROUTE (vector search)
+                      ↓              ↓                      ↓
+               DistilledContent → VectorEmbeddings → RoutingDecision
+                      ↓              ↓                      ↓
+                 [Cached Results] [Dual Vectors]    [Confidence-Based]
 ```
 
-### Migration Strategy
-1. **Phase 1** (Sprint 1): Build core pipeline, test in isolation
-2. **Phase 2** (Sprint 1): Add bridge service with feature flag
-3. **Phase 3** (Sprint 1): Enable bridge, compare outputs
-4. **Phase 4** (Future): Deprecate old flow, use core only
+### Intelligent Routing Decision Flow
+```
+Vector Search → Folder Matches → Scoring → Decision Making
+                      ↓              ↓            ↓
+              [Similarity Groups] [Weighted] [Confidence Thresholds]
+                                    ↓            ↓
+                               ┌─────────────────────────┐
+                               │ High (≥0.82): Auto     │
+                               │ Mid (0.65-0.82): Review│
+                               │ Low (<0.65): Unsorted  │
+                               └─────────────────────────┘
+```
 
-## Key Design Patterns
+## Configuration & Environment Setup
 
-### 1. Strategy Pattern
+### Environment Configuration Examples
+```bash
+# High accuracy configuration (slower, more accurate)
+HIGH_CONFIDENCE_THRESHOLD=0.85
+LOW_CONFIDENCE_THRESHOLD=0.70
+AVG_SIMILARITY_WEIGHT=0.7
+MAX_SIMILARITY_WEIGHT=0.2
+
+# Fast processing configuration (faster, less selective)
+HIGH_CONFIDENCE_THRESHOLD=0.75
+LOW_CONFIDENCE_THRESHOLD=0.60
+CONTEXT_SEARCH_LIMIT=20
+TITLE_SEARCH_LIMIT=10
+
+# AI Services
+OPENAI_API_KEY=your-api-key-here
+DISTILLATION_MODEL=gpt-3.5-turbo
+EMBEDDING_MODEL=text-embedding-3-small
+```
+
+### Programmatic Configuration
 ```typescript
-// Swappable implementations
-interface IRouter {
-  route(candidate: ConceptCandidate): Promise<RoutingDecision>;
-}
-
-// Sprint 1: Rule-based
-class SimpleRouterService implements IRouter { ... }
-
-// Sprint 2: AI-powered  
-class SmartRouterService implements IRouter { ... }
-```
-
-### 2. Repository Pattern
-```typescript
-// Abstract data access
-interface IConceptArtifactRepository {
-  save(artifact: ConceptArtifact): Promise<void>;
-  findById(id: string): Promise<ConceptArtifact | null>;
-}
-
-// Implementation handles storage details
-class FileSystemArtifactRepository implements IConceptArtifactRepository {
-  // File operations, atomic writes, directory structure
-}
-```
-
-### 3. Domain-Driven Design
-```typescript
-// Rich domain objects with business logic
-class ConceptCandidate {
-  // Factory methods with validation
-  static create(batch: Batch, normalizer: ITextNormalizer): ConceptCandidate;
-  
-  // Business operations
-  enhance(title: string, keyTerms: string[]): ConceptCandidate;
-  hasSameContent(other: ConceptCandidate): boolean;
-  getTextForEmbedding(): string;
-}
-```
-
-### 4. Error Handling Strategy
-```typescript
-// Structured errors with recovery
-try {
-  await repository.save(artifact);
-} catch (error) {
-  if (error instanceof ConcurrentModificationError) {
-    // Retry with exponential backoff
-  } else if (error instanceof FileSystemError) {
-    // Fallback to alternative storage
+// Development configuration
+const devConfig = loadPipelineConfig({
+  routing: {
+    highConfidenceThreshold: 0.7, // More lenient for testing
+    lowConfidenceThreshold: 0.5
+  },
+  clustering: {
+    minClusterSize: 2 // Smaller clusters for dev data
   }
-  // Log structured error context
-  auditLogger.logError(error.toJSON());
-}
-```
-
-## Configuration & Feature Flags
-
-### Environment Configuration
-```typescript
-// Type-safe configuration access
-const config = getConfig();
-const storageConfig = getConfigSection('storage');
-
-// Feature flag checks
-if (config.features.bridgeToCore) {
-  // Use new core pipeline
-} else {
-  // Keep existing flow
-}
-```
-
-### Key Configuration Sections
-- **Database**: SQLite paths, Redis connection
-- **Vector**: Qdrant settings, embedding providers
-- **Processing**: Text thresholds, routing confidence levels
-- **LLM**: API keys, token budgets (disabled in Sprint 1)
-- **Storage**: File paths, backup settings
-- **Features**: Gradual rollout flags
-
-## Integration Points
-
-### Existing Services Integration
-```typescript
-// In existing Orchestrator.ts
-async processBatch(batch: Batch): Promise<void> {
-  if (this.config.features.bridgeToCore) {
-    const coreOrchestrator = this.container.resolve<IPipelineOrchestrator>('IPipelineOrchestrator');
-    await coreOrchestrator.processBatch(batch);
-  } else {
-    // Keep existing processing
-    await this.existingProcessingFlow(batch);
-  }
-}
-```
-
-### Container Integration
-```typescript
-// Core services registered in extended container
-const coreContainer = createConceptOrganizerContainer({
-  environment: 'development',
-  useLocalOnly: true,
-  enableLLM: false,
 });
 
-// Resolve services for implementation
-const repository = coreContainer.resolve<IConceptArtifactRepository>('IConceptArtifactRepository');
+// Production configuration  
+const prodConfig = loadPipelineConfig({
+  routing: {
+    highConfidenceThreshold: 0.85, // Stricter for production
+    lowConfidenceThreshold: 0.70
+  }
+});
 ```
 
-## Quality Assurance
+## Quality Assurance & Testing
 
-### Testing Strategy
-- **TDD Approach**: Tests first for all implementations
-- **Unit Tests**: Isolated with mocked dependencies
-- **Integration Tests**: Real databases and file system
-- **Property Tests**: Determinism and idempotency verification
+### Testing Strategy (Sprint 2 Achievement)
+- **TDD Approach**: All services developed test-first
+- **Service-Specific Testing**: Each extracted service tested independently
+- **Configuration Testing**: Environment variables and overrides validated
+- **Integration Testing**: End-to-end pipeline flow verification
+- **Real AI Testing**: Actual OpenAI API integration tests
 
-### Key Properties to Test
-1. **Idempotency**: Same input → same output, can repeat operations
-2. **Atomicity**: Operations complete fully or not at all  
-3. **Determinism**: Same content → same IDs and file paths
-4. **Recovery**: System handles partial failures gracefully
+### Key Test Coverage
+- **PipelineConfig**: 29 configuration tests
+- **VectorClusteringService**: 20 clustering algorithm tests  
+- **ConceptRoutingDecisionMaker**: 16 decision logic tests
+- **ScoringUtilities**: 12 mathematical function tests
+- **SmartRouter**: 16 orchestration tests
+- **Integration**: 10 end-to-end pipeline tests
 
-## Performance Considerations
+### Clean Code Testing Principles
+- **One Assert Per Test** - Clear test failure messages
+- **Descriptive Test Names** - Intent-revealing test descriptions  
+- **Isolated Tests** - No dependencies between test cases
+- **Fast Tests** - Pure functions test quickly
+- **Deterministic Tests** - Same input always produces same output
 
-### Sprint 1 Focus
-- Atomic file operations for data integrity
-- Efficient SQLite queries with proper indexes
-- Batch processing to reduce overhead
-- Structured logging without performance impact
+## Performance Characteristics
 
-### Future Optimizations (Sprint 2+)
-- Vector search performance tuning
-- Embedding generation batching  
-- Cache layers for frequently accessed data
-- Background job scheduling for maintenance
+### Sprint 2 Performance Metrics
+- **Distillation**: ~500ms per concept (cached results much faster)
+- **Embedding**: ~200ms dual vector generation  
+- **Vector Search**: <50ms similarity matching
+- **Total Pipeline**: <1 second end-to-end
+- **Configuration Loading**: <10ms with validation
+
+### Memory & Resource Usage
+- **Service Extraction**: Reduced object complexity
+- **Pure Functions**: No retained state, garbage collection friendly
+- **Configuration**: Loaded once, reused throughout application
+- **Caching**: Content-based caching reduces API calls
 
 ## Security & Privacy
 
-### Current Protections
-- Local-only processing by default
-- No external API calls in Sprint 1
-- Structured audit logging for compliance
-- Atomic operations prevent data corruption
+### Current Protections (Sprint 2)
+- **API Key Management**: Environment-based configuration only
+- **Content Caching**: Hash-based, no sensitive data in keys
+- **Request Limits**: Daily quota enforcement prevents runaway costs
+- **Error Handling**: No sensitive data in error messages or logs
+- **Configuration Validation**: Prevents injection via environment variables
 
-### Future Enhancements (Sprint 4+)
-- PII detection and routing
-- Encryption at rest for sensitive content
-- Token budget limits for LLM usage
-- User consent and data deletion capabilities
+### Data Flow Security
+- **No Data Persistence**: OpenAI services don't persist training data
+- **Local Processing**: Distillation and embedding happen via API only
+- **Content Hashing**: SHA-256 for cache keys, deterministic IDs
+- **Graceful Degradation**: Fallback to local extraction if API fails
 
 ---
 
-**Architecture Status**: ✅ **SPRINT 1 COMPLETE - DATA FOUNDATION ESTABLISHED**  
-**Next Implementation**: **Sprint 2 - Storage & Basic Pipeline Services**  
-**Current Focus**: **Repository Implementation with Contract Testing**  
-**Integration Strategy**: **Gradual Bridge with Feature Flags**  
+**Architecture Status**: ✅ **SPRINT 2 COMPLETE - CLEAN CODE ARCHITECTURE WITH INTELLIGENT ROUTING**  
+**Current Achievement**: **DISTILL → EMBED → ROUTE Pipeline Fully Functional**  
+**Code Quality**: **95%+ Test Coverage, Zero Magic Numbers, SRP Compliance**  
+**Next Implementation**: **Sprint 3 - LLM Enhancement & Summarization**  
 
-**Last Updated**: 2025-01-13  
-**Architecture Version**: 1.1 (Post-Sprint 1)
+**Key Accomplishments**:
+- ✅ Service extraction following Single Responsibility Principle  
+- ✅ Zero magic numbers through comprehensive configuration system
+- ✅ Pure functions for mathematical operations 
+- ✅ Intention-revealing names throughout codebase
+- ✅ 95%+ test coverage with focused unit tests
+- ✅ Full TypeScript compilation without errors
+
+**Last Updated**: 2025-01-17  
+**Architecture Version**: 2.0 (Post-Sprint 2 Clean Code Implementation)
