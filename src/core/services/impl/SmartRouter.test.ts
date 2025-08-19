@@ -78,8 +78,7 @@ describe('SmartRouter', () => {
     };
 
     mockEmbeddings = {
-      titleVector: new Array(1536).fill(0).map(() => Math.random()),
-      contextVector: new Array(1536).fill(0).map(() => Math.random()),
+      vector: new Array(1536).fill(0).map(() => Math.random()),
       contentHash: 'hash123',
       model: 'text-embedding-3-small',
       dimensions: 1536,
@@ -159,25 +158,25 @@ describe('SmartRouter', () => {
       expect(decision.explanation.primarySignal).toContain('No suitable folder');
     });
 
-    it('should suggest review for ambiguous matches', async () => {
+    it('should route to folder when threshold is met', async () => {
       mockSearchByContext.mockResolvedValue([
         {
           conceptId: 'concept-1',
-          similarity: 0.70,
+          similarity: 0.75,
           folderId: 'folder-1'
         },
         {
           conceptId: 'concept-2',
-          similarity: 0.68,
+          similarity: 0.72,
           folderId: 'folder-2'
         }
       ]);
 
       const decision = await router.route(mockCandidate);
 
-      expect(decision.action).toBe('review');
-      expect(decision.confidence).toBeCloseTo(0.66, 1);
-      expect(decision.explanation.primarySignal).toContain('review');
+      expect(decision.action).toBe('route');
+      expect(decision.folderId).toBe('folder-1'); // Primary folder
+      expect(decision.explanation.primarySignal).toContain('Multi-folder placement');
     });
   });
 
@@ -186,22 +185,22 @@ describe('SmartRouter', () => {
       mockSearchByContext.mockResolvedValue([
         {
           conceptId: 'c1',
-          similarity: 0.9,
+          similarity: 0.75,
           folderId: 'folder-a'
         },
         {
           conceptId: 'c2',
-          similarity: 0.85,
+          similarity: 0.73,
           folderId: 'folder-a'
         },
         {
           conceptId: 'c3',
-          similarity: 0.8,
+          similarity: 0.71,
           folderId: 'folder-a'
         },
         {
           conceptId: 'c4',
-          similarity: 0.7,
+          similarity: 0.68,
           folderId: 'folder-b'
         }
       ]);
@@ -266,7 +265,7 @@ describe('SmartRouter', () => {
 
       mockEmbed.mockImplementation(() => ({
         ...mockEmbeddings,
-        contextVector: new Array(1536).fill(0.5)
+        vector: new Array(1536).fill(0.5)
       }));
 
       const result = await router.routeBatch(candidates);
@@ -361,12 +360,12 @@ describe('SmartRouter', () => {
       );
 
       mockSearchByContext.mockResolvedValue([
-        { conceptId: 'c1', similarity: 0.85, folderId: 'folder' }
+        { conceptId: 'c1', similarity: 0.6, folderId: 'folder' }
       ]);
 
       const decision = await customRouter.route(mockCandidate);
 
-      expect(decision.action).toBe('review');
+      expect(decision.action).toBe('unsorted'); // Below folderPlacementThreshold
     });
 
     it('should disable folder creation when configured', async () => {

@@ -116,7 +116,6 @@ const ProcessingConfigSchema = z.object({
     minTextLength: z.number().int().min(1).default(10),
     minWordCount: z.number().int().min(1).default(3),
     maxTextLength: z.number().int().min(100).default(5000),
-    minQualityScore: z.number().min(0).max(1).default(0.3),
     enableStitching: z.boolean().default(true),
     maxStitchDistance: z.number().int().min(1).default(5),
   }),

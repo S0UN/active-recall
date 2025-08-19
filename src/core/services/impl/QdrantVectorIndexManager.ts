@@ -2,9 +2,8 @@
  * QdrantVectorIndexManager - Qdrant-based vector storage implementation
  * 
  * Provides vector storage and search using Qdrant vector database.
- * Manages three collections:
- * - concepts_title: For deduplication searches
- * - concepts_context: For routing and clustering
+ * Manages two collections:
+ * - concepts: For both deduplication and routing searches
  * - folder_centroids: For folder representations
  */
 
@@ -32,8 +31,7 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
   private readonly client: QdrantClient;
   private readonly config: InternalConfig;
   private readonly collections: Readonly<{
-    readonly title: string;
-    readonly context: string;
+    readonly concepts: string;
     readonly centroids: string;
   }>;
 
@@ -59,8 +57,7 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
    */
   private buildCollectionNames(prefix: string): typeof this.collections {
     const base = {
-      title: 'concepts_title',
-      context: 'concepts_context',
+      concepts: 'concepts',
       centroids: 'folder_centroids'
     };
 
@@ -69,8 +66,7 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
     }
 
     return {
-      title: `${prefix}_${base.title}`,
-      context: `${prefix}_${base.context}`,
+      concepts: `${prefix}_${base.concepts}`,
       centroids: `${prefix}_${base.centroids}`
     };
   }
@@ -103,10 +99,7 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
   }
 
   private async upsertVectorPoints(conceptId: string, embeddings: VectorEmbeddings, payload: Record<string, unknown>): Promise<void> {
-    await Promise.all([
-      this.upsertToCollection(this.collections.title, conceptId, embeddings.titleVector, payload),
-      this.upsertToCollection(this.collections.context, conceptId, embeddings.contextVector, payload)
-    ]);
+    await this.upsertToCollection(this.collections.concepts, conceptId, embeddings.vector, payload);
   }
 
   private async upsertToCollection(collection: string, id: string, vector: number[], payload: Record<string, unknown>): Promise<void> {
@@ -122,12 +115,12 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
 
   async searchByTitle(options: VectorSearchOptions): Promise<SimilarConcept[]> {
     const { vector, threshold, limit = 50 } = options;
-    return this.searchVectors(this.collections.title, vector, threshold, limit, 'Title search failed');
+    return this.searchVectors(this.collections.concepts, vector, threshold, limit, 'Title search failed');
   }
 
   async searchByContext(options: VectorSearchOptions): Promise<SimilarConcept[]> {
     const { vector, threshold, limit = 50 } = options;
-    return this.searchVectors(this.collections.context, vector, threshold, limit, 'Context search failed');
+    return this.searchVectors(this.collections.concepts, vector, threshold, limit, 'Context search failed');
   }
 
   private async searchVectors(
@@ -178,9 +171,9 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
     return error instanceof Error ? error : new Error(String(error));
   }
 
-  async getFolderMembers(folderId: string): Promise<{ conceptId: string; contextVector: number[] }[]> {
+  async getFolderMembers(folderId: string): Promise<{ conceptId: string; vector: number[] }[]> {
     try {
-      const result = await this.client.scroll(this.collections.context, {
+      const result = await this.client.scroll(this.collections.concepts, {
         filter: this.createFolderFilter(folderId),
         limit: this.config.maxFolderMembers,
         with_payload: false,
@@ -189,7 +182,7 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
 
       return result.points.map(point => ({
         conceptId: String(point.id),
-        contextVector: point.vector as number[]
+        vector: point.vector as number[]
       }));
     } catch (error) {
       throw new VectorIndexError(
@@ -341,16 +334,10 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
 
   async delete(conceptId: string): Promise<void> {
     try {
-      await Promise.all([
-        this.client.delete(this.collections.title, {
-          wait: true,
-          points: [conceptId]
-        }),
-        this.client.delete(this.collections.context, {
-          wait: true,
-          points: [conceptId]
-        })
-      ]);
+      await this.client.delete(this.collections.concepts, {
+        wait: true,
+        points: [conceptId]
+      });
     } catch (error) {
       throw new VectorIndexError(
         `Failed to delete concept ${conceptId}: ${error}`,
@@ -408,8 +395,7 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
   }
 
   private validateVectorDimensions(embeddings: VectorEmbeddings): void {
-    this.validateVectorDimension(embeddings.titleVector);
-    this.validateVectorDimension(embeddings.contextVector);
+    this.validateVectorDimension(embeddings.vector);
   }
 
   private validateVectorDimension(vector: number[]): void {
@@ -420,7 +406,7 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
 
   private async getFolderMemberCount(folderId: string): Promise<number> {
     try {
-      const result = await this.client.count(this.collections.context, {
+      const result = await this.client.count(this.collections.concepts, {
         filter: {
           must: [{
             key: 'folder_id',

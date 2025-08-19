@@ -1,10 +1,8 @@
 /**
  * OpenAIEmbeddingService - Vector generation using OpenAI embeddings
  * 
- * Uses OpenAI's text-embedding-3-small model to generate vectors from
- * distilled content (title + summary). Creates two vectors:
- * - titleVector: For fast deduplication 
- * - contextVector: For semantic routing to folders
+ * Uses OpenAI's text-embedding-3-small model to generate a single vector from
+ * distilled content (title + summary) for both deduplication and routing.
  */
 
 import OpenAI from 'openai';
@@ -52,17 +50,13 @@ export class OpenAIEmbeddingService implements IEmbeddingService {
     }
 
     try {
-      // Generate both embeddings in parallel for efficiency
-      const [titleResponse, contextResponse] = await Promise.all([
-        this.generateEmbedding(distilled.title),
-        this.generateEmbedding(`${distilled.title}\n\n${distilled.summary}`)
-      ]);
+      // Generate single embedding for title + summary
+      const response = await this.generateEmbedding(`${distilled.title}\n\n${distilled.summary}`);
 
-      this.currentRequestCount += 2; // Two API calls
+      this.currentRequestCount += 1; // Single API call
 
       const embeddings: VectorEmbeddings = {
-        titleVector: titleResponse.data[0].embedding,
-        contextVector: contextResponse.data[0].embedding,
+        vector: response.data[0].embedding,
         contentHash: distilled.contentHash,
         model: this.embeddingConfig.model!,
         dimensions: this.embeddingConfig.dimensions!,

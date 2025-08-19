@@ -50,8 +50,7 @@ describe('QdrantVectorIndexManager', () => {
     });
 
     mockEmbeddings = {
-      titleVector: new Array(1536).fill(0).map(() => Math.random()),
-      contextVector: new Array(1536).fill(0).map(() => Math.random()),
+      vector: new Array(1536).fill(0).map(() => Math.random()),
       contentHash: 'test-hash',
       model: 'text-embedding-3-small',
       dimensions: 1536,
@@ -67,8 +66,7 @@ describe('QdrantVectorIndexManager', () => {
     mockCount.mockResolvedValue({ count: 0 });
     mockGetCollections.mockResolvedValue({ 
       collections: [
-        { name: 'concepts_title' },
-        { name: 'concepts_context' },
+        { name: 'concepts' },
         { name: 'folder_centroids' }
       ]
     });
@@ -79,38 +77,25 @@ describe('QdrantVectorIndexManager', () => {
       expect(manager.getDimensions()).toBe(1536);
     });
 
-    it('should upsert concept vectors to both collections', async () => {
+    it('should upsert concept vector to single collection', async () => {
       await manager.upsert({
         conceptId: 'concept-123',
         embeddings: mockEmbeddings,
         folderId: 'folder-456'
       });
 
-      expect(mockUpsert).toHaveBeenCalledTimes(2);
+      expect(mockUpsert).toHaveBeenCalledTimes(1);
       
-      // Check title collection upsert
-      expect(mockUpsert).toHaveBeenCalledWith('concepts_title', {
+      // Check concepts collection upsert
+      expect(mockUpsert).toHaveBeenCalledWith('concepts', {
         wait: true,
         points: [{
           id: 'concept-123',
-          vector: mockEmbeddings.titleVector,
+          vector: mockEmbeddings.vector,
           payload: expect.objectContaining({
             concept_id: 'concept-123',
             folder_id: 'folder-456',
             content_hash: 'test-hash'
-          })
-        }]
-      });
-
-      // Check context collection upsert
-      expect(mockUpsert).toHaveBeenCalledWith('concepts_context', {
-        wait: true,
-        points: [{
-          id: 'concept-123',
-          vector: mockEmbeddings.contextVector,
-          payload: expect.objectContaining({
-            concept_id: 'concept-123',
-            folder_id: 'folder-456'
           })
         }]
       });
@@ -122,8 +107,8 @@ describe('QdrantVectorIndexManager', () => {
         embeddings: mockEmbeddings
       });
 
-      expect(mockUpsert).toHaveBeenCalledTimes(2);
-      expect(mockUpsert).toHaveBeenCalledWith('concepts_title', 
+      expect(mockUpsert).toHaveBeenCalledTimes(1);
+      expect(mockUpsert).toHaveBeenCalledWith('concepts', 
         expect.objectContaining({
           points: [expect.objectContaining({
             payload: expect.objectContaining({
@@ -152,13 +137,13 @@ describe('QdrantVectorIndexManager', () => {
       mockSearch.mockResolvedValue(mockResults);
 
       const results = await manager.searchByTitle({
-        vector: mockEmbeddings.titleVector,
+        vector: mockEmbeddings.vector,
         threshold: 0.8,
         limit: 10
       });
 
-      expect(mockSearch).toHaveBeenCalledWith('concepts_title', {
-        vector: mockEmbeddings.titleVector,
+      expect(mockSearch).toHaveBeenCalledWith('concepts', {
+        vector: mockEmbeddings.vector,
         limit: 10,
         score_threshold: 0.8,
         with_payload: true
@@ -184,12 +169,12 @@ describe('QdrantVectorIndexManager', () => {
       mockSearch.mockResolvedValue(mockResults);
 
       const results = await manager.searchByContext({
-        vector: mockEmbeddings.contextVector,
+        vector: mockEmbeddings.vector,
         threshold: 0.85
       });
 
-      expect(mockSearch).toHaveBeenCalledWith('concepts_context', {
-        vector: mockEmbeddings.contextVector,
+      expect(mockSearch).toHaveBeenCalledWith('concepts', {
+        vector: mockEmbeddings.vector,
         limit: 50, // default
         score_threshold: 0.85,
         with_payload: true
@@ -211,7 +196,7 @@ describe('QdrantVectorIndexManager', () => {
 
       const members = await manager.getFolderMembers('folder-123');
 
-      expect(mockScroll).toHaveBeenCalledWith('concepts_context', {
+      expect(mockScroll).toHaveBeenCalledWith('concepts', {
         filter: {
           must: [{
             key: 'folder_id',
@@ -226,7 +211,7 @@ describe('QdrantVectorIndexManager', () => {
       expect(members).toHaveLength(2);
       expect(members[0]).toEqual({
         conceptId: 'concept-1',
-        contextVector: [0.1, 0.2, 0.3]
+        vector: [0.1, 0.2, 0.3]
       });
     });
 
@@ -333,15 +318,11 @@ describe('QdrantVectorIndexManager', () => {
   });
 
   describe('deletion', () => {
-    it('should delete concept from both collections', async () => {
+    it('should delete concept from single collection', async () => {
       await manager.delete('concept-123');
 
-      expect(mockDelete).toHaveBeenCalledTimes(2);
-      expect(mockDelete).toHaveBeenCalledWith('concepts_title', {
-        wait: true,
-        points: ['concept-123']
-      });
-      expect(mockDelete).toHaveBeenCalledWith('concepts_context', {
+      expect(mockDelete).toHaveBeenCalledTimes(1);
+      expect(mockDelete).toHaveBeenCalledWith('concepts', {
         wait: true,
         points: ['concept-123']
       });
@@ -352,8 +333,7 @@ describe('QdrantVectorIndexManager', () => {
     it('should validate vector dimensions on upsert', async () => {
       const invalidEmbeddings = {
         ...mockEmbeddings,
-        titleVector: [1, 2, 3], // Wrong dimension
-        contextVector: new Array(1536).fill(0)
+        vector: [1, 2, 3] // Wrong dimension
       };
 
       await expect(manager.upsert({
@@ -411,8 +391,8 @@ describe('QdrantVectorIndexManager', () => {
 
       await manager.initialize();
 
-      expect(mockCreateCollection).toHaveBeenCalledTimes(3);
-      expect(mockCreateCollection).toHaveBeenCalledWith('concepts_title', {
+      expect(mockCreateCollection).toHaveBeenCalledTimes(2);
+      expect(mockCreateCollection).toHaveBeenCalledWith('concepts', {
         vectors: {
           size: 1536,
           distance: 'Cosine'
@@ -426,7 +406,7 @@ describe('QdrantVectorIndexManager', () => {
 
     it('should skip creating existing collections', async () => {
       // Mock that collections already exist
-      mockGetCollection.mockResolvedValue({ name: 'concepts_title' });
+      mockGetCollection.mockResolvedValue({ name: 'concepts' });
 
       await manager.initialize();
 
@@ -444,8 +424,7 @@ describe('QdrantVectorIndexManager', () => {
 
       // Access private collections property for testing
       const collections = (prefixedManager as any).collections;
-      expect(collections.title).toBe('test_concepts_title');
-      expect(collections.context).toBe('test_concepts_context');
+      expect(collections.concepts).toBe('test_concepts');
       expect(collections.centroids).toBe('test_folder_centroids');
     });
   });

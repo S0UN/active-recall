@@ -228,8 +228,12 @@ describe('ConceptArtifactSchema', () => {
           enhancedSummary: 'Enhanced summary if available'
         },
         routing: {
-          path: '/Technology/AI/MachineLearning',
-          confidence: 0.85,
+          primaryPath: '/Technology/AI/MachineLearning',
+          placements: [{
+            path: '/Technology/AI/MachineLearning',
+            confidence: 0.85,
+            type: 'primary'
+          }],
           method: 'vector-similarity',
           alternatives: []
         },
@@ -281,9 +285,14 @@ describe('ConceptArtifactSchema', () => {
           normalized: 'text'
         },
         routing: {
-          path: '/path',
-          confidence: 0.5,
-          method: 'rule'
+          primaryPath: '/path',
+          placements: [{
+            path: '/path',
+            confidence: 0.5,
+            type: 'primary'
+          }],
+          method: 'rule',
+          alternatives: []
         },
         provenance: {
           source: {
@@ -369,9 +378,14 @@ describe('ConceptArtifactSchema', () => {
           normalized: 'text'
         },
         routing: {
-          path: '/path',
-          confidence: 1.5, // Invalid: should be between 0 and 1
-          method: 'rule'
+          primaryPath: '/path',
+          placements: [{
+            path: '/path',
+            confidence: 1.5, // Invalid: should be between 0 and 1
+            type: 'primary'
+          }],
+          method: 'rule',
+          alternatives: []
         },
         provenance: {
           source: {

@@ -124,7 +124,7 @@ npm run dev
 
 ### **Processing Speed**
 - **Distillation**: ~500ms per concept (cached results)
-- **Embedding**: ~200ms dual vector generation
+- **Embedding**: ~100ms single vector generation
 - **Vector Search**: <50ms similarity matching
 - **Total Pipeline**: <1 second end-to-end
 
@@ -212,9 +212,9 @@ const distilled = await distillationService.distill(candidate);
 
 ### **2. Embedding Service** 
 ```typescript
-// Generates dual vectors for different purposes
+// Generates single unified vector for routing and deduplication
 const embeddings = await embeddingService.embed(distilled);
-// → { titleVector: Float32Array(1536), contextVector: Float32Array(1536) }
+// → { vector: Float32Array(1536) }
 ```
 
 ### **3. Smart Router**

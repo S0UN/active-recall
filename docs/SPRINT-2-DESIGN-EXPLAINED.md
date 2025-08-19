@@ -200,37 +200,35 @@ async distill(candidate: ConceptCandidate): Promise<DistilledContent> {
 
 4. **Fallback Strategy**: If OpenAI fails, we extract title from first meaningful sentence and truncate content for summary.
 
-#### Step 2: EMBED (Dual Vector Strategy)
+#### Step 2: EMBED (Single Vector Strategy)
 
-**Purpose**: Create two vectors for different use cases
+**Purpose**: Create unified vector for routing and deduplication
 
 ```typescript
 // src/core/services/impl/OpenAIEmbeddingService.ts
 async embed(distilledContent: DistilledContent): Promise<VectorEmbeddings> {
-  // Generate TWO vectors in parallel for efficiency
-  const [titleEmbedding, contextEmbedding] = await Promise.all([
-    this.generateSingleEmbedding(distilledContent.title),      // For deduplication
-    this.generateSingleEmbedding(distilledContent.summary)     // For routing
-  ]);
+  // Generate single unified vector combining title and summary
+  const combinedText = `${distilledContent.title}\n\n${distilledContent.summary}`;
+  const vector = await this.generateSingleEmbedding(combinedText);
 
   return {
-    titleVector: titleEmbedding,
-    contextVector: contextEmbedding,
+    vector: vector,
+    contentHash: distilledContent.contentHash,
     model: this.embeddingConfig.model,                         // "text-embedding-3-small"
     dimensions: this.embeddingConfig.dimensions                // 1536
   };
 }
 ```
 
-**Why Two Vectors?**
+**Why Single Vector?**
 
-1. **Title Vector**: Short, focused vector for detecting duplicates
-   - "Calculus Chain Rule" vs "Chain Rule in Calculus" → High similarity
-   - Used for deduplication logic
+1. **Unified Approach**: Single vector combining title and summary context
+   - "Calculus Chain Rule" + summary → Rich semantic representation
+   - Used for both deduplication and routing with 50% cost reduction
 
-2. **Context Vector**: Rich vector capturing full meaning
-   - Embeds the complete summary with examples and context
-   - Used for similarity search and folder routing
+2. **Optimal Context**: Combines concise title with detailed summary
+   - Captures both specific topic and broader context
+   - Enables accurate similarity search and duplicate detection
 
 #### Step 3: ROUTE (Intelligent Decision Making)
 
@@ -247,7 +245,7 @@ async route(candidate: ConceptCandidate): Promise<RoutingDecision> {
   
   // 3. SEARCH - Find similar concepts
   const similarConcepts = await this.vectorIndexManager.findSimilarConcepts(
-    embeddings.contextVector,
+    embeddings.vector,
     this.config.vectorSearch.searchLimit
   );
   
@@ -841,7 +839,7 @@ export class SmartRouter implements ISmartRouter {
       
       // Step 3: SEARCH - Delegate to specialized service
       const similarConcepts = await this.vectorIndexManager.findSimilarConcepts(
-        embeddings.contextVector,
+        embeddings.vector,
         this.config.vectorSearch.searchLimit           // Configuration-driven
       );
       

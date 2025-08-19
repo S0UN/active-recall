@@ -313,8 +313,7 @@ describe('Pipeline Integration Tests', () => {
 
       // Mock embedding service to return wrong dimensions
       vi.spyOn(embeddingService, 'embed').mockResolvedValueOnce({
-        titleVector: new Array(512).fill(0.1), // Wrong dimension  
-        contextVector: new Array(512).fill(0.1), // Wrong dimension
+        vector: new Array(512).fill(0.1), // Wrong dimension (should be 1536)
         contentHash: 'hash123',
         model: 'text-embedding-3-small',
         dimensions: 512, // Wrong dimension

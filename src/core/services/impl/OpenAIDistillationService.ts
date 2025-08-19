@@ -81,6 +81,12 @@ export class OpenAIDistillationService implements IDistillationService {
       }
 
       const parsed = JSON.parse(content);
+      
+      // Check if content was identified as non-study material
+      if (parsed.title === 'NOT_STUDY_CONTENT' || parsed.summary === 'NOT_STUDY_CONTENT') {
+        throw new DistillationError('Content is not study-related');
+      }
+      
       const distilled: DistilledContent = {
         title: this.sanitizeTitle(parsed.title || 'Concept'),
         summary: this.sanitizeSummary(parsed.summary || candidate.normalizedText.substring(0, 500)),
@@ -127,12 +133,27 @@ export class OpenAIDistillationService implements IDistillationService {
    * Get the system prompt for distillation
    */
   private getSystemPrompt(): string {
-    return `Extract a concise title and summary from the provided text.
+    return `Extract a concise title and summary from the provided text ONLY if it contains study-related or educational content.
 
 Requirements:
+- IMPORTANT: If the text is NOT related to studying, learning, or educational content, return: {"title": "NOT_STUDY_CONTENT", "summary": "NOT_STUDY_CONTENT"}
 - Title: Maximum 100 characters, descriptive and specific
 - Summary: 2-5 sentences (50-500 characters), captures key concepts
 - Return as JSON: {"title": "...", "summary": "..."}
+
+Study-related content includes:
+- Academic subjects (math, science, history, etc.)
+- Programming and technical concepts
+- Educational tutorials and explanations
+- Research papers and documentation
+- Learning materials and course content
+
+NOT study-related (return NOT_STUDY_CONTENT):
+- Social media posts
+- Entertainment content
+- Shopping/e-commerce
+- General web navigation
+- News articles (unless educational)
 
 Focus on the core concept or learning objective. Remove navigation, UI elements, and boilerplate text.`;
   }

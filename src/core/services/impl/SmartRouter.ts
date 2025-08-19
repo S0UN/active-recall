@@ -244,6 +244,13 @@ export class SmartRouter implements ISmartRouter {
       const normalized = candidate.normalize();
       return await this.distillService.distill(normalized);
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Handle non-study content specifically
+      if (errorMessage.includes('not study-related')) {
+        throw new RoutingPipelineError('distill', 'Content is not study-related and will be skipped', error as Error);
+      }
+      
       throw new RoutingPipelineError('distill', 'Failed to distill content', error as Error);
     }
   }
@@ -269,7 +276,7 @@ export class SmartRouter implements ISmartRouter {
 
   private buildTitleSearchOptions(embeddings: VectorEmbeddings) {
     return {
-      vector: embeddings.titleVector,
+      vector: embeddings.vector,
       threshold: this.config.duplicateThreshold,
       limit: this.pipelineConfig.vector.titleSearchLimit
     };
@@ -324,7 +331,7 @@ export class SmartRouter implements ISmartRouter {
 
   private buildContextSearchOptions(embeddings: VectorEmbeddings) {
     return {
-      vector: embeddings.contextVector,
+      vector: embeddings.vector,
       threshold: this.config.lowConfidenceThreshold,
       limit: this.pipelineConfig.vector.contextSearchLimit
     };
@@ -400,201 +407,138 @@ export class SmartRouter implements ISmartRouter {
     _embeddings: VectorEmbeddings,
     _distilled: DistilledContent
   ): Promise<RoutingDecision> {
-    const bestMatch = this.getBestMatch(folderMatches);
-    const confidence = this.calculateConfidence(bestMatch);
+    // TODO: Implement Enhanced Smart Trigger System routing logic
+    // This method will be enhanced to support:
+    // - Tiered similarity thresholds (High >0.85, Medium 0.65-0.85, Low <0.65)
+    // - LLM-powered folder creation for low similarity concepts
+    // - Integration with IFolderExpansionService for size-based triggers
+    // - Integration with IDuplicateCleanupService for duplicate prevention
+    // See: /docs/ENHANCED-FOLDER-EXPANSION-SYSTEM.md
     
-    return this.determineRoutingAction(bestMatch, folderMatches, confidence);
+    // Multi-folder placement logic based on thresholds
+    const placements = this.determineFolderPlacements(folderMatches);
+    
+    if (placements.length === 0) {
+      return this.createUnsortedDecision(folderMatches, 'No suitable folders found');
+    }
+    
+    // Check for duplicate threshold first
+    const bestPlacement = placements[0];
+    if (bestPlacement.confidence >= this.pipelineConfig.routing.duplicateThreshold) {
+      return this.createDuplicateRoutingDecision(bestPlacement.path, bestPlacement.confidence);
+    }
+    
+    return this.createMultiFolderDecision(placements, folderMatches);
   }
 
-  private getBestMatch(folderMatches: FolderMatch[]): FolderMatch | null {
-    return folderMatches[0] || null;
+  private determineFolderPlacements(folderMatches: FolderMatch[]): { path: string; confidence: number; type: 'primary' | 'secondary' }[] {
+    const placements: { path: string; confidence: number; type: 'primary' | 'secondary' }[] = [];
+    const threshold = this.pipelineConfig.routing.folderPlacementThreshold;
+    
+    // Sort by confidence descending
+    const sortedMatches = folderMatches.sort((a, b) => b.score - a.score);
+    
+    for (let i = 0; i < sortedMatches.length; i++) {
+      const match = sortedMatches[i];
+      
+      if (match.score >= threshold) {
+        placements.push({
+          path: match.folderId,
+          confidence: match.score,
+          type: i === 0 ? 'primary' : 'secondary'
+        });
+      }
+    }
+    
+    return placements;
   }
 
-  private calculateConfidence(match: FolderMatch | null): number {
-    return match?.score || 0;
-  }
-
-  private determineRoutingAction(
-    bestMatch: FolderMatch | null,
-    allMatches: FolderMatch[],
-    confidence: number
+  private createMultiFolderDecision(
+    placements: { path: string; confidence: number; type: 'primary' | 'secondary' }[],
+    allMatches: FolderMatch[]
   ): RoutingDecision {
-    if (this.shouldRouteToUnsorted(bestMatch, confidence)) {
-      return this.createUnsortedDecision(allMatches, this.getUnsortedReason(bestMatch, confidence));
-    }
-
-    if (this.shouldRouteDirectly(confidence)) {
-      return this.createRouteDecision(bestMatch!, 'High confidence match');
-    }
-
-    if (this.shouldRequestReview(confidence)) {
-      return this.createReviewDecision(allMatches, 'Ambiguous match - review needed');
-    }
-
-    return this.createUnsortedDecision(allMatches, 'Low confidence match');
-  }
-
-  private shouldRouteToUnsorted(match: FolderMatch | null, confidence: number): boolean {
-    return !match || confidence < this.config.newTopicThreshold;
-  }
-
-  private shouldRouteDirectly(confidence: number): boolean {
-    return confidence >= this.config.highConfidenceThreshold;
-  }
-
-  private shouldRequestReview(confidence: number): boolean {
-    return confidence >= this.config.lowConfidenceThreshold;
-  }
-
-  private getUnsortedReason(match: FolderMatch | null, confidence: number): string {
-    if (match === null) {
-      return 'No suitable folder found';
-    }
+    const primary = placements[0];
     
-    if (confidence < this.config.newTopicThreshold) {
-      return 'No suitable folder found';
-    }
-    
-    return 'Low confidence match';
-  }
-
-  private createRouteDecision(match: FolderMatch, reason: string): RoutingDecision {
-    this.updateRoutingStatistics(match.score);
+    this.updateRoutingStatistics('route', primary.confidence);
     
     return {
       action: 'route',
-      folderId: match.folderId,
-      confidence: match.score,
-      explanation: this.buildRouteExplanation(match, reason),
+      folderId: primary.path,
+      confidence: primary.confidence,
+      explanation: this.buildMultiFolderRoutingExplanation(placements, allMatches),
       timestamp: new Date()
     };
   }
 
-  private updateRoutingStatistics(confidence: number): void {
-    this.routingStats.totalRouted++;
-    this.routingStats.totalConfidence += confidence;
-  }
-
-  private buildRouteExplanation(match: FolderMatch, reason: string): RoutingExplanation {
+  private createDuplicateRoutingDecision(path: string, confidence: number): RoutingDecision {
+    this.updateRoutingStatistics('duplicate', confidence);
+    
     return {
-      primarySignal: reason,
-      similarConcepts: this.extractTopSimilarConcepts(match.similarConcepts),
-      decisionFactors: this.buildDecisionFactors(match),
-      folderMatches: [match]
+      action: 'duplicate',
+      folderId: path,
+      confidence: confidence,
+      explanation: {
+        primarySignal: 'High similarity match',
+        similarConcepts: [],
+        decisionFactors: [`Very high similarity (${(confidence * 100).toFixed(1)}%)`, 'Indicates likely duplicate'],
+        folderMatches: [{ folderId: path, score: confidence, conceptCount: 1 }]
+      },
+      timestamp: new Date()
     };
   }
 
-  private extractTopSimilarConcepts(concepts: SimilarConcept[]): any[] {
-    return concepts.slice(0, 5).map(concept => ({
-      conceptId: concept.conceptId,
-      title: 'Similar concept',
-      similarity: concept.similarity
-    }));
+  private buildMultiFolderRoutingExplanation(
+    placements: { path: string; confidence: number; type: 'primary' | 'secondary' }[],
+    allMatches: FolderMatch[]
+  ): RoutingExplanation {
+    const primary = placements.find(p => p.type === 'primary');
+    const secondaries = placements.filter(p => p.type === 'secondary');
+    
+    const decisionFactors = [
+      `Primary placement: ${primary?.path} (${(primary!.confidence * 100).toFixed(1)}%)`
+    ];
+    
+    if (secondaries.length > 0) {
+      const secondaryDescriptions = secondaries.map(s => `${s.path} (${(s.confidence * 100).toFixed(1)}%)`);
+      decisionFactors.push(`Secondary placements: ${secondaryDescriptions.join(', ')}`);
+    }
+    
+    decisionFactors.push(`Using multi-folder threshold: ${this.pipelineConfig.routing.folderPlacementThreshold}`);
+    
+    return {
+      primarySignal: 'Multi-folder placement based on similarity thresholds',
+      similarConcepts: [],
+      decisionFactors: decisionFactors,
+      folderMatches: allMatches.map(match => ({
+        folderId: match.folderId,
+        score: match.score,
+        conceptCount: match.conceptCount
+      }))
+    };
   }
 
-  private buildDecisionFactors(match: FolderMatch): string[] {
-    const averageSimilarity = this.calculateAverageSimilarity(match.similarConcepts);
+
+  private createUnsortedDecision(matches: FolderMatch[], reason: string): RoutingDecision {
+    const confidence = matches[0]?.score || 0;
+    this.updateRoutingStatistics('unsorted', confidence);
     
-    return [
-      `Folder score: ${match.score.toFixed(3)}`,
-      `Similar concepts: ${match.conceptCount}`,
-      `Average similarity: ${averageSimilarity.toFixed(3)}`
-    ];
+    return {
+      action: 'unsorted',
+      confidence: confidence,
+      explanation: {
+        primarySignal: reason,
+        similarConcepts: [],
+        decisionFactors: [reason, `Best score: ${matches[0]?.score?.toFixed(3) || 'N/A'}`],
+        folderMatches: matches.slice(0, 3)
+      },
+      timestamp: new Date()
+    };
   }
 
   private calculateAverageSimilarity(concepts: SimilarConcept[]): number {
     if (concepts.length === 0) return 0;
     return concepts.reduce((sum, concept) => sum + concept.similarity, 0) / concepts.length;
   }
-
-  private createUnsortedDecision(matches: FolderMatch[], reason: string): RoutingDecision {
-    this.updateUnsortedStatistics();
-    
-    return {
-      action: 'unsorted',
-      confidence: this.getBestConfidence(matches),
-      explanation: this.buildUnsortedExplanation(matches, reason),
-      timestamp: new Date()
-    };
-  }
-
-  private updateUnsortedStatistics(): void {
-    this.routingStats.totalRouted++;
-    this.routingStats.unsortedCount++;
-  }
-
-  private getBestConfidence(matches: FolderMatch[]): number {
-    return matches[0]?.score || 0;
-  }
-
-  private buildUnsortedExplanation(matches: FolderMatch[], reason: string): RoutingExplanation {
-    return {
-      primarySignal: reason,
-      similarConcepts: [],
-      decisionFactors: this.buildUnsortedDecisionFactors(matches),
-      folderMatches: this.getTopMatches(matches, 3)
-    };
-  }
-
-  private buildUnsortedDecisionFactors(matches: FolderMatch[]): string[] {
-    const bestScore = this.formatBestScore(matches);
-    const thresholdMessage = `Threshold not met: < ${this.config.lowConfidenceThreshold}`;
-    
-    return [bestScore, thresholdMessage];
-  }
-
-  private formatBestScore(matches: FolderMatch[]): string {
-    const score = matches[0]?.score;
-    return `Best score: ${score?.toFixed(3) || 'N/A'}`;
-  }
-
-  private getTopMatches(matches: FolderMatch[], limit: number): FolderMatch[] {
-    return matches.slice(0, limit);
-  }
-
-  private createReviewDecision(matches: FolderMatch[], reason: string): RoutingDecision {
-    const primaryMatch = matches[0];
-    this.updateRoutingStatistics(primaryMatch.score);
-    
-    return {
-      action: 'review',
-      confidence: primaryMatch.score,
-      explanation: this.buildReviewExplanation(matches, reason),
-      timestamp: new Date()
-    };
-  }
-
-  private buildReviewExplanation(matches: FolderMatch[], reason: string): RoutingExplanation {
-    const primaryMatch = matches[0];
-    
-    return {
-      primarySignal: reason,
-      similarConcepts: this.extractTopSimilarConcepts(primaryMatch.similarConcepts),
-      decisionFactors: this.buildReviewDecisionFactors(matches),
-      folderMatches: this.getTopMatches(matches, 3)
-    };
-  }
-
-  private buildReviewDecisionFactors(matches: FolderMatch[]): string[] {
-    const scoreDescription = this.describeAmbiguousScore(matches[0]);
-    const candidateCount = this.countViableCandidates(matches);
-    
-    return [scoreDescription, candidateCount];
-  }
-
-  private describeAmbiguousScore(match: FolderMatch): string {
-    return `Score in ambiguous range: ${match.score.toFixed(3)}`;
-  }
-
-  private countViableCandidates(matches: FolderMatch[]): string {
-    const count = matches.filter(match => this.isViableCandidate(match)).length;
-    return `Multiple candidates: ${count}`;
-  }
-
-  private isViableCandidate(match: FolderMatch): boolean {
-    return match.score > this.config.lowConfidenceThreshold;
-  }
-
 
   private async processConceptsBatch(candidates: ConceptCandidate[]): Promise<Array<{
     candidate: ConceptCandidate;
@@ -635,8 +579,8 @@ export class SmartRouter implements ISmartRouter {
         if (visited.has(j)) continue;
         
         const similarity = this.cosineSimilarity(
-          processedConcepts[i].embeddings.contextVector,
-          processedConcepts[j].embeddings.contextVector
+          processedConcepts[i].embeddings.vector,
+          processedConcepts[j].embeddings.vector
         );
         
         if (this.isClusterSimilarityAboveThreshold(similarity)) {
@@ -648,8 +592,8 @@ export class SmartRouter implements ISmartRouter {
       if (cluster.length >= 2) {
         clusters.push({
           concepts: cluster.map(idx => `concept-${idx}`),
-          centroid: this.calculateCentroid(cluster.map(idx => processedConcepts[idx].embeddings.contextVector)),
-          coherence: this.calculateCoherence(cluster.map(idx => processedConcepts[idx].embeddings.contextVector)),
+          centroid: this.calculateCentroid(cluster.map(idx => processedConcepts[idx].embeddings.vector)),
+          coherence: this.calculateCoherence(cluster.map(idx => processedConcepts[idx].embeddings.vector)),
           suggestedAction: cluster.length >= this.config.minClusterSize ? 'create_folder' : 'route_together'
         });
       }
@@ -660,7 +604,7 @@ export class SmartRouter implements ISmartRouter {
 
   private async findUnsortedSimilar(embeddings: VectorEmbeddings): Promise<SimilarConcept[]> {
     const results = await this.vectorIndex.searchByContext({
-      vector: embeddings.contextVector,
+      vector: embeddings.vector,
       threshold: this.pipelineConfig.clustering.unsortedSimilarityThreshold,
       limit: this.pipelineConfig.clustering.unsortedSearchLimit
     });
@@ -737,5 +681,17 @@ export class SmartRouter implements ISmartRouter {
     }
     
     return centroid;
+  }
+
+
+  private updateRoutingStatistics(action: string, confidence: number): void {
+    this.routingStats.totalRouted++;
+    this.routingStats.totalConfidence += confidence;
+
+    if (action === 'duplicate') {
+      this.routingStats.duplicatesFound++;
+    } else if (action === 'unsorted') {
+      this.routingStats.unsortedCount++;
+    }
   }
 }

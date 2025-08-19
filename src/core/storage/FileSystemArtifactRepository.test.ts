@@ -45,8 +45,12 @@ describe('FileSystemArtifactRepository', () => {
         enhancedSummary: 'An enhanced summary of the concept'
       },
       routing: {
-        path: '/Technology/Testing',
-        confidence: 0.85,
+        primaryPath: '/Technology/Testing',
+        placements: [{
+          path: '/Technology/Testing',
+          confidence: 0.85,
+          type: 'primary'
+        }],
         method: 'rule-based',
         alternatives: []
       },
@@ -120,8 +124,12 @@ describe('FileSystemArtifactRepository', () => {
     it('should create parent directories if they do not exist', async () => {
       const artifact = createTestArtifact({
         routing: {
-          path: '/Deep/Nested/Path/Structure',
-          confidence: 0.8,
+          primaryPath: '/Deep/Nested/Path/Structure',
+          placements: [{
+            path: '/Deep/Nested/Path/Structure',
+            confidence: 0.8,
+            type: 'primary'
+          }],
           method: 'test',
           alternatives: []
         }
@@ -179,11 +187,21 @@ describe('FileSystemArtifactRepository', () => {
       
       const artifact1 = createTestArtifact({ 
         artifactId: 'artifact-001',
-        routing: { path: path.toString(), confidence: 0.8, method: 'test', alternatives: [] }
+        routing: { 
+          primaryPath: path.toString(), 
+          placements: [{ path: path.toString(), confidence: 0.8, type: 'primary' }],
+          method: 'test', 
+          alternatives: [] 
+        }
       });
       const artifact2 = createTestArtifact({ 
         artifactId: 'artifact-002',
-        routing: { path: path.toString(), confidence: 0.9, method: 'test', alternatives: [] }
+        routing: { 
+          primaryPath: path.toString(), 
+          placements: [{ path: path.toString(), confidence: 0.9, type: 'primary' }],
+          method: 'test', 
+          alternatives: [] 
+        }
       });
       
       await repository.save(artifact1);
@@ -207,11 +225,21 @@ describe('FileSystemArtifactRepository', () => {
       
       const parentArtifact = createTestArtifact({ 
         artifactId: 'parent-artifact',
-        routing: { path: parentPath.toString(), confidence: 0.8, method: 'test', alternatives: [] }
+        routing: { 
+          primaryPath: parentPath.toString(), 
+          placements: [{ path: parentPath.toString(), confidence: 0.8, type: 'primary' }],
+          method: 'test', 
+          alternatives: [] 
+        }
       });
       const childArtifact = createTestArtifact({ 
         artifactId: 'child-artifact',
-        routing: { path: childPath.toString(), confidence: 0.8, method: 'test', alternatives: [] }
+        routing: { 
+          primaryPath: childPath.toString(), 
+          placements: [{ path: childPath.toString(), confidence: 0.8, type: 'primary' }],
+          method: 'test', 
+          alternatives: [] 
+        }
       });
       
       await repository.save(parentArtifact);
@@ -300,7 +328,12 @@ describe('FileSystemArtifactRepository', () => {
   describe('updatePath', () => {
     it('should move artifact to new path', async () => {
       const artifact = createTestArtifact({
-        routing: { path: '/Old/Path', confidence: 0.8, method: 'test', alternatives: [] }
+        routing: { 
+          primaryPath: '/Old/Path', 
+          placements: [{ path: '/Old/Path', confidence: 0.8, type: 'primary' }],
+          method: 'test', 
+          alternatives: [] 
+        }
       });
       await repository.save(artifact);
       
@@ -319,7 +352,7 @@ describe('FileSystemArtifactRepository', () => {
       
       // Content should be updated with new path
       const updated = await repository.findById(artifact.artifactId);
-      expect(updated?.routing.path).toBe('/New/Path');
+      expect(updated?.routing.primaryPath).toBe('/New/Path');
     });
 
     it('should handle non-existent artifact gracefully', async () => {
@@ -374,15 +407,30 @@ describe('FileSystemArtifactRepository', () => {
       
       await repository.save(createTestArtifact({ 
         artifactId: 'tech-1',
-        routing: { path: path1.toString(), confidence: 0.8, method: 'test', alternatives: [] }
+        routing: { 
+          primaryPath: path1.toString(), 
+          placements: [{ path: path1.toString(), confidence: 0.8, type: 'primary' }],
+          method: 'test', 
+          alternatives: [] 
+        }
       }));
       await repository.save(createTestArtifact({ 
         artifactId: 'tech-2',
-        routing: { path: path1.toString(), confidence: 0.8, method: 'test', alternatives: [] }
+        routing: { 
+          primaryPath: path1.toString(), 
+          placements: [{ path: path1.toString(), confidence: 0.8, type: 'primary' }],
+          method: 'test', 
+          alternatives: [] 
+        }
       }));
       await repository.save(createTestArtifact({ 
         artifactId: 'science-1',
-        routing: { path: path2.toString(), confidence: 0.8, method: 'test', alternatives: [] }
+        routing: { 
+          primaryPath: path2.toString(), 
+          placements: [{ path: path2.toString(), confidence: 0.8, type: 'primary' }],
+          method: 'test', 
+          alternatives: [] 
+        }
       }));
       
       expect(await repository.countByPath(path1)).toBe(2);

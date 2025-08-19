@@ -18,7 +18,7 @@ export function runVerificationTest(): void {
     console.log(`   📊 High confidence: ${config.routing.highConfidenceThreshold}`);
     console.log(`   📏 Vector dimensions: ${config.vector.defaultDimensions}`);
     console.log(`   📝 Min text length: ${config.textValidation.minTextLength}`);
-    console.log(`   🎯 Quality weights: ${config.qualityScore.uniquenessWeight}/${config.qualityScore.lengthWeight}`);
+    console.log(`   📊 Cache enabled: ${config.cache.enableCaching}`);
     console.log(`   📁 Folder scoring: avg=${config.folderScoring.avgSimilarityWeight}, max=${config.folderScoring.maxSimilarityWeight}\n`);
 
     // Test 2: ConceptCandidate
@@ -89,7 +89,7 @@ export function runVerificationTest(): void {
     console.log('✅ All hardcoded values replaced with configuration:');
     console.log(`   🎯 Routing thresholds: ${config.routing.highConfidenceThreshold}/${config.routing.lowConfidenceThreshold}/${config.routing.newTopicThreshold}`);
     console.log(`   📝 Text validation: ${config.textValidation.minTextLength}-${config.textValidation.maxTextLength} chars`);
-    console.log(`   🧮 Quality scoring: uniqueness(${config.qualityScore.uniquenessWeight}) + length(${config.qualityScore.lengthWeight})`);
+    console.log(`   💾 Cache TTL: ${config.cache.defaultTtlDays} days`);
     console.log(`   📁 Folder scoring: avg(${config.folderScoring.avgSimilarityWeight}) + max(${config.folderScoring.maxSimilarityWeight}) + bonus(${config.folderScoring.countBonusMultiplier})`);
     console.log(`   🔍 Search limits: context(${config.vector.contextSearchLimit}), title(${config.vector.titleSearchLimit})`);
     console.log(`   🎲 Clustering: threshold(${config.clustering.clusterSimilarityThreshold}), min-size(${config.clustering.minClusterForSuggestion})\n`);

@@ -50,17 +50,8 @@ describe('PipelineConfig', () => {
     it('should have all text validation limits', () => {
       expect(DEFAULT_PIPELINE_CONFIG.textValidation.minTextLength).toBe(3);
       expect(DEFAULT_PIPELINE_CONFIG.textValidation.maxTextLength).toBe(5000);
-      expect(DEFAULT_PIPELINE_CONFIG.textValidation.minQualityScore).toBe(0.3);
-      expect(DEFAULT_PIPELINE_CONFIG.textValidation.minWordCount).toBe(3);
-      expect(DEFAULT_PIPELINE_CONFIG.textValidation.shortTextQualityScore).toBe(0.2);
     });
 
-    it('should have quality score weights that sum to 1.0', () => {
-      const { qualityScore } = DEFAULT_PIPELINE_CONFIG;
-      const sum = qualityScore.uniquenessWeight + qualityScore.lengthWeight;
-      
-      expect(sum).toBeCloseTo(1.0, 2);
-    });
 
     it('should have folder scoring weights that sum to less than 1.0 (leaving room for count bonus)', () => {
       const { folderScoring } = DEFAULT_PIPELINE_CONFIG;
@@ -114,17 +105,11 @@ describe('PipelineConfig', () => {
     it('should load text validation configuration from environment', () => {
       process.env.MIN_TEXT_LENGTH = '5';
       process.env.MAX_TEXT_LENGTH = '8000';
-      process.env.MIN_QUALITY_SCORE = '0.4';
-      process.env.MIN_WORD_COUNT = '4';
-      process.env.SHORT_TEXT_QUALITY_SCORE = '0.3';
 
       const config = loadPipelineConfig();
 
       expect(config.textValidation.minTextLength).toBe(5);
       expect(config.textValidation.maxTextLength).toBe(8000);
-      expect(config.textValidation.minQualityScore).toBe(0.4);
-      expect(config.textValidation.minWordCount).toBe(4);
-      expect(config.textValidation.shortTextQualityScore).toBe(0.3);
     });
 
     it('should handle boolean environment variables correctly', () => {
@@ -273,10 +258,7 @@ describe('PipelineConfig', () => {
         },
         textValidation: {
           minTextLength: 5,
-          maxTextLength: 10000,
-          minQualityScore: 0.4,
-          minWordCount: 5,
-          shortTextQualityScore: 0.3
+          maxTextLength: 10000
         }
       };
 
@@ -287,10 +269,6 @@ describe('PipelineConfig', () => {
   describe('configuration integration', () => {
     it('should maintain consistency between related thresholds', () => {
       const config = loadPipelineConfig();
-      
-      // Quality score weights should be positive
-      expect(config.qualityScore.uniquenessWeight).toBeGreaterThan(0);
-      expect(config.qualityScore.lengthWeight).toBeGreaterThan(0);
       
       // Folder scoring weights should be positive
       expect(config.folderScoring.avgSimilarityWeight).toBeGreaterThan(0);

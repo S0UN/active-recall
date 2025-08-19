@@ -70,14 +70,14 @@ Following modern clean code principles, the system features extracted services f
   - Intention-revealing naming: `openAiClient`, `contentCache`, `distillationConfig`
 
 - **OpenAIEmbeddingService** (`src/core/services/impl/OpenAIEmbeddingService.ts`) ✅
-  - Dual vector strategy: title vectors (deduplication) + context vectors (routing)
+  - Single vector strategy: combined title + summary embedding for unified routing and deduplication
   - text-embedding-3-small model with 1536 dimensions
-  - Parallel embedding generation for efficiency
+  - Efficient single API call per concept (50% cost reduction)
   - Request quota management and daily rate limiting
   - Clean naming: `currentRequestCount`, `dailyRequestLimit`, `embeddingConfig`
 
 - **QdrantVectorIndexManager** (`src/core/services/impl/QdrantVectorIndexManager.ts`) ✅
-  - Three-collection vector storage: concepts_title, concepts_context, folder_centroids
+  - Single-collection vector storage: concepts collection with unified vectors
   - Cosine similarity search with configurable thresholds
   - Centroid-based folder representation and updates
   - Vector index lifecycle management with options objects pattern

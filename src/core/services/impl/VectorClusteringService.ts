@@ -109,8 +109,8 @@ export class VectorClusteringService implements IClusteringService {
       if (visited.has(j)) continue;
       
       const similarity = this.calculateCosineSimilarity(
-        embeddings[startIndex].contextVector,
-        embeddings[j].contextVector
+        embeddings[startIndex].vector,
+        embeddings[j].vector
       );
       
       if (this.exceedsSimilarityThreshold(similarity, config)) {
@@ -128,7 +128,7 @@ export class VectorClusteringService implements IClusteringService {
     config: ClusteringConfig
   ): ConceptCluster[] {
     return clusterGroups.map(group => {
-      const vectors = group.map(index => embeddings[index].contextVector);
+      const vectors = group.map(index => embeddings[index].vector);
       const coherence = this.calculateCoherence(vectors);
       const centroid = this.calculateCentroid(vectors);
       const suggestedAction = this.determineSuggestedAction(group.length, coherence, config);

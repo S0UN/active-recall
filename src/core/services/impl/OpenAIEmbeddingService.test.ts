@@ -75,16 +75,15 @@ describe('OpenAIEmbeddingService', () => {
 
       const result = await service.embed(distilled);
 
-      expect(result.titleVector).toHaveLength(1536);
-      expect(result.contextVector).toHaveLength(1536);
+      expect(result.vector).toHaveLength(1536);
       expect(result.contentHash).toBe('hash123');
       expect(result.model).toBe('text-embedding-3-small');
       expect(result.dimensions).toBe(1536);
       expect(result.cached).toBe(false);
       expect(result.embeddedAt).toBeInstanceOf(Date);
 
-      // Should make two API calls (title + context)
-      expect(mockEmbeddingsCreate).toHaveBeenCalledTimes(2);
+      // Should make one API call (single vector)
+      expect(mockEmbeddingsCreate).toHaveBeenCalledTimes(1);
     });
 
     it('should not cache embeddings (caching not implemented)', async () => {
@@ -108,7 +107,7 @@ describe('OpenAIEmbeddingService', () => {
       expect(result2.cached).toBe(false);
 
       // Should make new API calls since caching is not implemented
-      expect(mockEmbeddingsCreate).toHaveBeenCalledTimes(2);
+      expect(mockEmbeddingsCreate).toHaveBeenCalledTimes(1); // Single vector system
     });
   });
 
@@ -148,7 +147,7 @@ describe('OpenAIEmbeddingService', () => {
       }, cache);
 
       // Override daily limit for testing
-      (restrictedService as any).dailyLimit = 2;
+      (restrictedService as any).dailyRequestLimit = 1;
 
       const distilled: DistilledContent = {
         title: 'Test',
@@ -158,11 +157,11 @@ describe('OpenAIEmbeddingService', () => {
         distilledAt: new Date()
       };
 
-      // First call should work (uses 2 requests: title + context)
+      // First call should work (uses 1 request: single vector)
       await restrictedService.embed(distilled);
-      expect(restrictedService.getRequestCount()).toBe(2);
+      expect(restrictedService.getRequestCount()).toBe(1);
 
-      // Second call should fail due to limit
+      // Second call should fail due to limit (already at 1/1)
       await expect(restrictedService.embed({
         ...distilled,
         contentHash: 'limit456'
@@ -183,13 +182,9 @@ describe('OpenAIEmbeddingService', () => {
       const result = await service.embed(distilled);
 
       // Check all required fields
-      expect(Array.isArray(result.titleVector)).toBe(true);
-      expect(result.titleVector.length).toBe(1536);
-      expect(result.titleVector.every(n => typeof n === 'number')).toBe(true);
-
-      expect(Array.isArray(result.contextVector)).toBe(true);
-      expect(result.contextVector.length).toBe(1536);
-      expect(result.contextVector.every(n => typeof n === 'number')).toBe(true);
+      expect(Array.isArray(result.vector)).toBe(true);
+      expect(result.vector.length).toBe(1536);
+      expect(result.vector.every(n => typeof n === 'number')).toBe(true);
 
       expect(typeof result.contentHash).toBe('string');
       expect(result.contentHash.length).toBeGreaterThan(0);

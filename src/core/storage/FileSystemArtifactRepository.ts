@@ -139,7 +139,7 @@ export class FileSystemArtifactRepository implements IConceptArtifactRepository 
    * Get file path for an artifact
    */
   private getFilePath(artifact: ConceptArtifact): string {
-    const pathSegments = artifact.routing.path.split('/').filter(s => s.length > 0);
+    const pathSegments = artifact.routing.primaryPath.split('/').filter(s => s.length > 0);
     return join(this.basePath, ...pathSegments, `${artifact.artifactId}.json`);
   }
 
@@ -333,7 +333,11 @@ export class FileSystemArtifactRepository implements IConceptArtifactRepository 
     const oldFilePath = this.artifactIndex.get(artifactId)!;
     
     // Update artifact routing
-    artifact.routing.path = newPath.toString();
+    artifact.routing.primaryPath = newPath.toString();
+    // Update the primary placement as well
+    if (artifact.routing.placements.length > 0) {
+      artifact.routing.placements[0].path = newPath.toString();
+    }
     artifact.audit.lastModified = new Date();
     
     // Save to new location

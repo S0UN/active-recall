@@ -416,20 +416,17 @@ class SmartRouter implements ISmartRouter {
     // 1. DISTILL: Get title + summary from LLM (or fallback)
     const distilled = await this.distillationService.distill(candidate);
     
-    // 2. EMBED: Generate vectors from enriched content
-    const titleVector = await this.embeddingService.generateTitleVector(distilled.title);
-    const contextVector = await this.embeddingService.generateContextVector(
-      `${distilled.title} ${distilled.summary}`
-    );
+    // 2. EMBED: Generate single vector from enriched content
+    const embeddings = await this.embeddingService.embed(distilled);
     
-    // 3. ROUTE: Find similar folders using context vector
-    const folderMatches = await this.vectorIndex.searchSimilarFolders(contextVector, 10);
+    // 3. ROUTE: Find similar folders using unified vector
+    const folderMatches = await this.vectorIndex.searchSimilarFolders(embeddings.vector, 10);
     
     // 4. Score placement options with hybrid algorithm
     const placementScores = await this.computePlacementScores(
       distilled, 
       folderMatches, 
-      contextVector
+      embeddings.vector
     );
     
     // 5. Make routing decision based on confidence thresholds

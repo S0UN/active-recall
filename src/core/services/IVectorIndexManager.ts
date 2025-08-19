@@ -77,7 +77,7 @@ export interface IVectorIndexManager {
    * Used by clustering services for analysis
    * @param folderId - Folder to retrieve vectors from
    */
-  getFolderMembers(folderId: string): Promise<{ conceptId: string; contextVector: number[] }[]>;
+  getFolderMembers(folderId: string): Promise<{ conceptId: string; vector: number[] }[]>;
 
   /**
    * Update folder centroid vector

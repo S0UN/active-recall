@@ -10,6 +10,7 @@ interface RoutingThresholds {
   lowConfidenceThreshold: number;
   newTopicThreshold: number;
   duplicateThreshold: number;
+  folderPlacementThreshold: number; // Threshold for placing in a folder
 }
 
 interface BatchProcessingConfig {
@@ -21,15 +22,6 @@ interface BatchProcessingConfig {
 interface TextValidationConfig {
   minTextLength: number;
   maxTextLength: number;
-  minQualityScore: number;
-  minWordCount: number;
-  shortTextQualityScore: number;
-}
-
-interface QualityScoreWeights {
-  uniquenessWeight: number;
-  lengthWeight: number;
-  avgWordLengthNormalization: number;
 }
 
 interface VectorConfig {
@@ -63,7 +55,6 @@ export interface PipelineConfig {
   routing: RoutingThresholds;
   batch: BatchProcessingConfig;
   textValidation: TextValidationConfig;
-  qualityScore: QualityScoreWeights;
   vector: VectorConfig;
   folderScoring: FolderScoringWeights;
   clustering: ClusteringConfig;
@@ -75,7 +66,8 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
     highConfidenceThreshold: 0.82,
     lowConfidenceThreshold: 0.65,
     newTopicThreshold: 0.5,
-    duplicateThreshold: 0.9
+    duplicateThreshold: 0.9,
+    folderPlacementThreshold: 0.7
   },
   
   batch: {
@@ -86,16 +78,7 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
   
   textValidation: {
     minTextLength: 3,
-    maxTextLength: 5000,
-    minQualityScore: 0.3,
-    minWordCount: 3,
-    shortTextQualityScore: 0.2
-  },
-  
-  qualityScore: {
-    uniquenessWeight: 0.6,
-    lengthWeight: 0.4,
-    avgWordLengthNormalization: 5
+    maxTextLength: 5000
   },
   
   vector: {
@@ -171,7 +154,8 @@ export function loadPipelineConfig(): PipelineConfig {
       highConfidenceThreshold: parseFloatWithFallback(process.env.HIGH_CONFIDENCE_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.highConfidenceThreshold),
       lowConfidenceThreshold: parseFloatWithFallback(process.env.LOW_CONFIDENCE_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.lowConfidenceThreshold),
       newTopicThreshold: parseFloatWithFallback(process.env.NEW_TOPIC_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.newTopicThreshold),
-      duplicateThreshold: parseFloatWithFallback(process.env.DUPLICATE_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.duplicateThreshold)
+      duplicateThreshold: parseFloatWithFallback(process.env.DUPLICATE_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.duplicateThreshold),
+      folderPlacementThreshold: parseFloatWithFallback(process.env.FOLDER_PLACEMENT_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.folderPlacementThreshold)
     },
     
     batch: {
@@ -182,16 +166,7 @@ export function loadPipelineConfig(): PipelineConfig {
     
     textValidation: {
       minTextLength: parseIntWithFallback(process.env.MIN_TEXT_LENGTH, DEFAULT_PIPELINE_CONFIG.textValidation.minTextLength),
-      maxTextLength: parseIntWithFallback(process.env.MAX_TEXT_LENGTH, DEFAULT_PIPELINE_CONFIG.textValidation.maxTextLength),
-      minQualityScore: parseFloatWithFallback(process.env.MIN_QUALITY_SCORE, DEFAULT_PIPELINE_CONFIG.textValidation.minQualityScore),
-      minWordCount: parseIntWithFallback(process.env.MIN_WORD_COUNT, DEFAULT_PIPELINE_CONFIG.textValidation.minWordCount),
-      shortTextQualityScore: parseFloatWithFallback(process.env.SHORT_TEXT_QUALITY_SCORE, DEFAULT_PIPELINE_CONFIG.textValidation.shortTextQualityScore)
-    },
-    
-    qualityScore: {
-      uniquenessWeight: parseFloatWithFallback(process.env.UNIQUENESS_WEIGHT, DEFAULT_PIPELINE_CONFIG.qualityScore.uniquenessWeight),
-      lengthWeight: parseFloatWithFallback(process.env.LENGTH_WEIGHT, DEFAULT_PIPELINE_CONFIG.qualityScore.lengthWeight),
-      avgWordLengthNormalization: parseFloatWithFallback(process.env.AVG_WORD_LENGTH_NORM, DEFAULT_PIPELINE_CONFIG.qualityScore.avgWordLengthNormalization)
+      maxTextLength: parseIntWithFallback(process.env.MAX_TEXT_LENGTH, DEFAULT_PIPELINE_CONFIG.textValidation.maxTextLength)
     },
     
     vector: {

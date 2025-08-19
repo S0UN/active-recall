@@ -202,12 +202,5 @@ describe('ConceptCandidate', () => {
       }).toThrow('Text cannot be empty');
     });
 
-    it('should accept text that meets quality threshold', () => {
-      const acceptableText = 'Neural networks are computational models inspired by biological systems.';
-      
-      expect(() => {
-        new ConceptCandidate(mockBatch, acceptableText, 0);
-      }).not.toThrow();
-    });
   });
 });

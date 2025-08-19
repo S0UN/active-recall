@@ -4,7 +4,7 @@ v# Sprint 1 Design: Data Models & Core Contracts
 
 Sprint 1 established the foundational data structures, schemas, and contracts for the Concept Organizer system. This document explains what we built, why we made these design decisions, and how everything fits together.
 
-## What We Built
+## What We Builtcan 
 
 ### 1. **Data Schemas with Zod** (`src/core/contracts/schemas.ts`)
 

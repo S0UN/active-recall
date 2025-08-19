@@ -121,8 +121,12 @@ export const ContentSchema = z.object({
  * Routing decision information
  */
 export const RoutingInfoSchema = z.object({
-  path: z.string().min(1, "Field cannot be empty"),
-  confidence: z.number().min(0).max(1),
+  primaryPath: z.string().min(1, "Field cannot be empty"), // Primary folder placement
+  placements: z.array(z.object({
+    path: z.string(),
+    confidence: z.number().min(0).max(1),
+    type: z.enum(['primary', 'secondary']) // Primary vs secondary placement
+  })),
   method: z.string().min(1, "Field cannot be empty"),
   rationale: z.string().optional(),
   alternatives: z.array(z.object({
@@ -170,11 +174,10 @@ export const AuditInfoSchema = z.object({
 
 /**
  * Vector embeddings for the concept
- * Two-view approach: title vector (fast dedup) + context vector (routing)
+ * Single vector approach: one vector for both deduplication and routing
  */
 export const VectorEmbeddingsSchema = z.object({
-  titleVector: z.array(z.number()), // Fast dedup/lookups
-  contextVector: z.array(z.number()), // Primary for routing/search
+  vector: z.array(z.number()), // Single vector for all operations
   contentHash: z.string().min(1, "Field cannot be empty"),
   model: z.string().min(1, "Field cannot be empty"),
   dimensions: z.number().int().positive(),
@@ -200,7 +203,7 @@ export const ConceptArtifactSchema = z.object({
     score: z.number().min(0).max(1),
     reason: z.string(),
   })).optional(),
-  embeddings: VectorEmbeddingsSchema.optional(), // Two-vector approach
+  embeddings: VectorEmbeddingsSchema.optional(), // Single vector embeddings
   version: z.string().min(1, "Field cannot be empty"),
 });
 

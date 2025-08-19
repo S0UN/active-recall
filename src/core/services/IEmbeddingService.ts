@@ -2,11 +2,10 @@
  * IEmbeddingService - Vector embedding generation for routing
  * 
  * This service implements the EMBED step of our pipeline:
- * ConceptCandidate → DISTILL → EMBED (titleVector + contextVector) → ROUTE
+ * ConceptCandidate → DISTILL → EMBED (single vector) → ROUTE
  * 
- * Two-vector approach:
- * - titleVector: Fast deduplication and similar concept detection
- * - contextVector: Rich semantic routing to appropriate folders
+ * Single-vector approach:
+ * - vector: Used for both deduplication and semantic routing to folders
  */
 
 import { DistilledContent, VectorEmbeddings } from '../contracts/schemas';
@@ -17,9 +16,9 @@ import { DistilledContent, VectorEmbeddings } from '../contracts/schemas';
  */
 export interface IEmbeddingService {
   /**
-   * Generate title and context embeddings from distilled content
+   * Generate single unified embedding from distilled content
    * @param distilled - The title + summary from distillation
-   * @returns Promise<VectorEmbeddings> - Two vectors for routing
+   * @returns Promise<VectorEmbeddings> - Single vector for routing and deduplication
    */
   embed(distilled: DistilledContent): Promise<VectorEmbeddings>;
 

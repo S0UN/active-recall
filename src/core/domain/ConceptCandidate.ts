@@ -8,7 +8,7 @@
  * Key responsibilities:
  * - Normalize text content for consistent processing
  * - Generate deterministic IDs for idempotency
- * - Validate content quality and constraints
+ * - Basic input validation
  * - Provide source tracking information
  */
 
@@ -29,6 +29,7 @@ export interface NormalizedCandidate {
 	source: SourceInfo;
 	createdAt: Date;
 }
+
 
 /**
  * ConceptCandidate domain model
@@ -130,8 +131,6 @@ export class ConceptCandidate {
 		
 		const trimmedText = text.trim();
 		this.ensureTextMeetsLengthRequirements(trimmedText);
-		this.ensureTextHasValidContent(trimmedText);
-		this.ensureTextMeetsQualityStandards(trimmedText);
 	}
 
 	private ensureTextIsNotEmpty(text: string): void {
@@ -159,83 +158,6 @@ export class ConceptCandidate {
 		}
 	}
 
-	private ensureTextHasValidContent(trimmedText: string): void {
-		if (this.isOnlyWhitespace(trimmedText)) {
-			throw new Error('Text cannot be empty or only whitespace');
-		}
-	}
-
-	private ensureTextMeetsQualityStandards(trimmedText: string): void {
-		const minQualityScore = this._config.textValidation.minQualityScore;
-		const actualScore = this.getQualityScore(trimmedText);
-		
-		if (actualScore < minQualityScore) {
-			throw new Error(`Text quality score too low: ${actualScore.toFixed(3)} < ${minQualityScore}`);
-		}
-	}
-
-	/**
-	 * Check if text is only whitespace characters
-	 */
-	private isOnlyWhitespace(text: string): boolean {
-		return /^\s*$/.test(text);
-	}
-
-	/**
-	 * Compute a simple quality score for the text
-	 */
-	private getQualityScore(text: string): number {
-		const words = this.extractValidWords(text);
-		
-		if (this.hasInsufficientWords(words)) {
-			return this.getMinimumQualityScore(words);
-		}
-		
-		const uniqueness = this.calculateWordUniqueness(words);
-		const lengthScore = this.calculateAverageWordLengthScore(words);
-		
-		return this.combineQualityFactors(uniqueness, lengthScore);
-	}
-
-	private extractValidWords(text: string): string[] {
-		return text.split(/\s+/).filter(word => word.length > 0);
-	}
-
-	private hasInsufficientWords(words: string[]): boolean {
-		const minWordCount = this._config.textValidation.minWordCount;
-		const hasNoWords = words.length === 0;
-		const hasTooFewWords = words.length < minWordCount;
-		
-		return hasNoWords || hasTooFewWords;
-	}
-
-	private getMinimumQualityScore(words: string[]): number {
-		const noWordsScore = 0;
-		const shortTextScore = this._config.textValidation.shortTextQualityScore;
-		
-		return words.length === 0 ? noWordsScore : shortTextScore;
-	}
-
-	private calculateWordUniqueness(words: string[]): number {
-		const uniqueWords = new Set(words.map(word => word.toLowerCase()));
-		return uniqueWords.size / words.length;
-	}
-
-	private calculateAverageWordLengthScore(words: string[]): number {
-		const totalLength = words.reduce((sum, word) => sum + word.length, 0);
-		const avgWordLength = totalLength / words.length;
-		const normalizationFactor = this._config.qualityScore.avgWordLengthNormalization;
-		const maxScore = 1;
-		
-		return Math.min(avgWordLength / normalizationFactor, maxScore);
-	}
-
-	private combineQualityFactors(uniqueness: number, lengthScore: number): number {
-		const uniquenessWeight = this._config.qualityScore.uniquenessWeight;
-		const lengthWeight = this._config.qualityScore.lengthWeight;
-		
-		return (uniqueness * uniquenessWeight) + (lengthScore * lengthWeight);
-	}
 
 	/**
 	 * Generate deterministic ID based on batch, index, and normalized text

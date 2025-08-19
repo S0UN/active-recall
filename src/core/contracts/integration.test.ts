@@ -180,8 +180,12 @@ describe('End-to-End Integration', () => {
           normalized: 'test content'
         },
         routing: {
-          path: '/Test',
-          confidence: 0.8,
+          primaryPath: '/Test',
+          placements: [{
+            path: '/Test',
+            confidence: 0.8,
+            type: 'primary'
+          }],
           method: 'test',
           alternatives: []
         },
