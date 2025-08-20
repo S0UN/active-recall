@@ -5,6 +5,11 @@ export class IdleState implements IOrchestratorState {
   onEnter() {
     this.orchestrator.startWindowPolling();
     this.orchestrator.startIdleRevalidationPolling();
+    try {
+      this.orchestrator.notifyBatcherIdleStarted();
+    } catch (error) {
+      this.orchestrator.logger.warn('Failed to notify batcher of idle state', error as Error);
+    }
   }
   onWindowChange(oldWindow: string, newWindow: string) {
     this.orchestrator.handleWindowChange(oldWindow, newWindow);

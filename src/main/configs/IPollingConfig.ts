@@ -5,4 +5,5 @@ export interface IPollingConfig {
   idleRevalidationIntervalMs: number;
   windowCacheTTL: number;
   newWindowPipelineDelayMs: number;
+  batchIdleFlushTimeoutMs: number;
 }

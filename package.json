@@ -5,7 +5,8 @@
   "scripts": {
     "start": "npm run build && electron .",
     "build": "tsc && mkdir -p dist/main/services/preprocessing/impl && cp src/main/services/preprocessing/impl/spellcheck.py dist/main/services/preprocessing/impl/ && cp src/main/services/preprocessing/impl/frequency_dictionary_en_82_765.txt dist/main/services/preprocessing/impl/ && mkdir -p dist/main/services/analysis/python && cp src/main/services/analysis/python/huggingface_classifier.py dist/main/services/analysis/python/",
-    "test": "vitest"
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
@@ -20,6 +21,7 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@qdrant/js-client-rest": "^1.15.0",
     "@types/uuid": "^10.0.0",
     "active-win": "^7.7.2",

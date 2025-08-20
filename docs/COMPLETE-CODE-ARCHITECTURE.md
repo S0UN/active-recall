@@ -28,11 +28,11 @@ src/core/
 - `PipelineConfig` interface - Complete system configuration
 - `loadPipelineConfig()` - Configuration loading with environment variable support
 - Configuration sections:
-  - `routing` - Similarity thresholds and routing behavior
-  - `folderScoring` - Weighted scoring parameters
-  - `vector` - Vector search limits and parameters
-  - `batch` - Batch processing settings
-  - `clustering` - Clustering algorithm parameters
+	- `routing` - Similarity thresholds and routing behavior
+	- `folderScoring` - Weighted scoring parameters
+	- `vector` - Vector search limits and parameters
+	- `batch` - Batch processing settings
+	- `clustering` - Clustering algorithm parameters
 
 **Environment Variables Supported**:
 ```typescript
@@ -73,25 +73,25 @@ TITLE_SEARCH_LIMIT=15
 **Key Schemas**:
 
 1. **Input Schemas** (from capture system):
-   ```typescript
-   EntrySchema           // Individual captured text
-   SessionMarkerSchema   // Session boundaries  
-   BatchSchema          // Collection of entries
-   ```
+	 ```typescript
+	 EntrySchema           // Individual captured text
+	 SessionMarkerSchema   // Session boundaries  
+	 BatchSchema          // Collection of entries
+	 ```
 
 2. **Processing Schemas**:
-   ```typescript
-   ConceptCandidateSchema  // Normalized concept ready for routing
-   DistilledContentSchema  // LLM-enhanced title + summary
-   VectorEmbeddingsSchema  // Single vector embeddings (UPDATED from dual)
-   ```
+	 ```typescript
+	 ConceptCandidateSchema  // Normalized concept ready for routing
+	 DistilledContentSchema  // LLM-enhanced title + summary
+	 VectorEmbeddingsSchema  // Single vector embeddings (UPDATED from dual)
+	 ```
 
 3. **Output Schemas**:
-   ```typescript
-   ConceptArtifactSchema   // Final processed concept with metadata
-   RoutingInfoSchema      // Placement decision with multi-folder support
-   FolderManifestSchema   // Folder metadata and statistics
-   ```
+	 ```typescript
+	 ConceptArtifactSchema   // Final processed concept with metadata
+	 RoutingInfoSchema      // Placement decision with multi-folder support
+	 FolderManifestSchema   // Folder metadata and statistics
+	 ```
 
 **Recent Updates**:
 - ✅ Single vector system (removed `titleVector`, `contextVector`)
@@ -128,12 +128,12 @@ TITLE_SEARCH_LIMIT=15
 **Normalization Pipeline**:
 ```typescript
 private createNormalizationPipeline(): Array<(text: string) => string> {
-  return [
-    this.convertToLowercase,
-    this.trimWhitespace,
-    this.collapseMultipleSpaces,
-    this.removeUIArtifacts,
-  ];
+	return [
+		this.convertToLowercase,
+		this.trimWhitespace,
+		this.collapseMultipleSpaces,
+		this.removeUIArtifacts,
+	];
 }
 ```
 
@@ -157,10 +157,10 @@ private createNormalizationPipeline(): Array<(text: string) => string> {
 **Validation Rules**:
 ```typescript
 private static readonly CONSTRAINTS = {
-  maxDepth: 4,
-  maxSegmentLength: 50,
-  reservedNames: ['CON', 'PRN', 'AUX'], // Windows compatibility
-  invalidCharacters: /[<>:\"|?*]/,
+	maxDepth: 4,
+	maxSegmentLength: 50,
+	reservedNames: ['CON', 'PRN', 'AUX'], // Windows compatibility
+	invalidCharacters: /[<>:\"|?*]/,
 };
 ```
 
@@ -262,11 +262,11 @@ private static readonly CONSTRAINTS = {
 **Key Implementation**:
 ```typescript
 const response = await this.openai.chat.completions.create({
-  model: "gpt-3.5-turbo",
-  messages: [systemPrompt, userPrompt],
-  response_format: { type: "json_object" },
-  temperature: 0.3,
-  max_tokens: 200
+	model: "gpt-3.5-turbo",
+	messages: [systemPrompt, userPrompt],
+	response_format: { type: "json_object" },
+	temperature: 0.3,
+	max_tokens: 200
 });
 ```
 
@@ -364,13 +364,13 @@ static calculateConceptCountBonus(count, config): number
 ### Current Pipeline (Single Vector System ✅)
 ```
 ConceptCandidate 
-    ↓ DISTILL (OpenAIDistillationService)
+		↓ DISTILL (OpenAIDistillationService)
 DistilledContent
-    ↓ EMBED (OpenAIEmbeddingService) [SINGLE VECTOR]
+		↓ EMBED (OpenAIEmbeddingService) [SINGLE VECTOR]
 VectorEmbeddings  
-    ↓ ROUTE (SmartRouter + VectorIndexManager)
+		↓ ROUTE (SmartRouter + VectorIndexManager)
 RoutingDecision [MULTI-FOLDER SUPPORT]
-    ↓ STORE (FileSystemArtifactRepository)
+		↓ STORE (FileSystemArtifactRepository)
 ConceptArtifact
 ```
 
@@ -383,9 +383,9 @@ SmartRouter (Orchestrator)
 ├── VectorClusteringService
 ├── ConceptRoutingDecisionMaker
 └── [Future: Enhanced Smart Trigger Services]
-    ├── IFolderExpansionService
-    ├── ILLMFolderAnalysisService  
-    └── IDuplicateCleanupService
+		├── IFolderExpansionService
+		├── ILLMFolderAnalysisService  
+		└── IDuplicateCleanupService
 ```
 
 ## Configuration Integration
@@ -450,15 +450,15 @@ Let's trace a concept through the entire system to understand how every componen
 ```json
 // Raw data from capture system
 {
-  "batchId": "batch_2025_01_19_14_30_15",
-  "window": "Chrome - Calculus Textbook Chapter 3",
-  "topic": "mathematics",
-  "entries": [
-    {
-      "text": "The chain rule is used to find derivatives of composite functions...",
-      "timestamp": "2025-01-19T14:30:15Z"
-    }
-  ]
+	"batchId": "batch_2025_01_19_14_30_15",
+	"window": "Chrome - Calculus Textbook Chapter 3",
+	"topic": "mathematics",
+	"entries": [
+		{
+			"text": "The chain rule is used to find derivatives of composite functions...",
+			"timestamp": "2025-01-19T14:30:15Z"
+		}
+	]
 }
 ```
 
@@ -479,9 +479,9 @@ const batch = BatchSchema.parse(rawInput);
 ```typescript
 // Create domain object with business logic
 const candidate = new ConceptCandidate(
-  batch,
-  batch.entries[0].text,
-  0  // index in entries array
+	batch,
+	batch.entries[0].text,
+	0  // index in entries array
 );
 
 // Domain model computes deterministic ID
@@ -515,25 +515,25 @@ const distilled = await distillService.distill(candidate);
 
 // OpenAI API call with structured prompt
 const response = await openai.chat.completions.create({
-  model: "gpt-3.5-turbo",
-  messages: [
-    {
-      role: "system",
-      content: "Extract title and 2-5 sentence summary. Return JSON."
-    },
-    {
-      role: "user", 
-      content: "the chain rule is used to find derivatives..."
-    }
-  ],
-  response_format: { type: "json_object" }
+	model: "gpt-3.5-turbo",
+	messages: [
+		{
+			role: "system",
+			content: "Extract title and 2-5 sentence summary. Return JSON."
+		},
+		{
+			role: "user", 
+			content: "the chain rule is used to find derivatives..."
+		}
+	],
+	response_format: { type: "json_object" }
 });
 
 // Parsed and validated result
 const distilled = {
-  title: "Chain Rule for Composite Functions",
-  summary: "The chain rule is a fundamental technique in calculus used to find derivatives of composite functions. When you have a function nested inside another function, the chain rule states that the derivative equals the derivative of the outer function times the derivative of the inner function. This rule is essential for differentiating complex mathematical expressions involving function composition.",
-  contentHash: "sha256_of_normalized_text"
+	title: "Chain Rule for Composite Functions",
+	summary: "The chain rule is a fundamental technique in calculus used to find derivatives of composite functions. When you have a function nested inside another function, the chain rule states that the derivative equals the derivative of the outer function times the derivative of the inner function. This rule is essential for differentiating complex mathematical expressions involving function composition.",
+	contentHash: "sha256_of_normalized_text"
 };
 
 // Validated against DistilledContentSchema ✅
@@ -547,18 +547,18 @@ const embeddings = await embeddingService.embed(distilled);
 // Single API call combining title + summary (was dual vectors ✅)
 const combinedText = `${distilled.title}\n\n${distilled.summary}`;
 const response = await openai.embeddings.create({
-  model: "text-embedding-3-small",
-  input: combinedText
+	model: "text-embedding-3-small",
+	input: combinedText
 });
 
 // Single vector result (1536 dimensions)
 const embeddings = {
-  vector: [0.1234, -0.5678, 0.9012, ...], // 1536 numbers
-  contentHash: distilled.contentHash,
-  model: "text-embedding-3-small",
-  dimensions: 1536,
-  cached: false,
-  embeddedAt: new Date()
+	vector: [0.1234, -0.5678, 0.9012, ...], // 1536 numbers
+	contentHash: distilled.contentHash,
+	model: "text-embedding-3-small",
+	dimensions: 1536,
+	cached: false,
+	embeddedAt: new Date()
 };
 
 // Validated against VectorEmbeddingsSchema ✅
@@ -568,32 +568,32 @@ const embeddings = {
 ```typescript
 // Router searches for similar folders
 const folderMatches = await vectorIndex.searchByContext({
-  vector: embeddings.vector,
-  threshold: 0.65,  // From PipelineConfig
-  limit: 30         // From PipelineConfig  
+	vector: embeddings.vector,
+	threshold: 0.65,  // From PipelineConfig
+	limit: 30         // From PipelineConfig  
 });
 
 // Qdrant vector database query
 const results = await qdrantClient.search('concepts', {
-  vector: embeddings.vector,
-  limit: 30,
-  with_payload: true
+	vector: embeddings.vector,
+	limit: 30,
+	with_payload: true
 });
 
 // Results grouped by folder
 const folderMatches = [
-  {
-    folderId: "Mathematics/Calculus/Derivatives", 
-    score: 0.87,
-    conceptCount: 12,
-    similarConcepts: [...]
-  },
-  {
-    folderId: "Mathematics/Calculus/Functions",
-    score: 0.73, 
-    conceptCount: 8,
-    similarConcepts: [...]
-  }
+	{
+		folderId: "Mathematics/Calculus/Derivatives", 
+		score: 0.87,
+		conceptCount: 12,
+		similarConcepts: [...]
+	},
+	{
+		folderId: "Mathematics/Calculus/Functions",
+		score: 0.73, 
+		conceptCount: 8,
+		similarConcepts: [...]
+	}
 ];
 ```
 
@@ -606,33 +606,33 @@ const placements = router.determineFolderPlacements(folderMatches);
 const threshold = pipelineConfig.routing.folderPlacementThreshold; // 0.7
 
 const placements = [
-  {
-    path: "Mathematics/Calculus/Derivatives",
-    confidence: 0.87,
-    type: "primary"     // Best match
-  },
-  {
-    path: "Mathematics/Calculus/Functions", 
-    confidence: 0.73,
-    type: "secondary"   // Also above threshold
-  }
+	{
+		path: "Mathematics/Calculus/Derivatives",
+		confidence: 0.87,
+		type: "primary"     // Best match
+	},
+	{
+		path: "Mathematics/Calculus/Functions", 
+		confidence: 0.73,
+		type: "secondary"   // Also above threshold
+	}
 ];
 
 // Create routing decision
 const decision = {
-  action: "route",
-  folderId: "Mathematics/Calculus/Derivatives", // Primary
-  confidence: 0.87,
-  explanation: {
-    primarySignal: "Multi-folder placement based on similarity thresholds",
-    folderMatches: [...],
-    decisionFactors: [
-      "Primary placement: Mathematics/Calculus/Derivatives (87.0%)",
-      "Secondary placements: Mathematics/Calculus/Functions (73.0%)",
-      "Using multi-folder threshold: 0.7"
-    ]
-  },
-  timestamp: new Date()
+	action: "route",
+	folderId: "Mathematics/Calculus/Derivatives", // Primary
+	confidence: 0.87,
+	explanation: {
+		primarySignal: "Multi-folder placement based on similarity thresholds",
+		folderMatches: [...],
+		decisionFactors: [
+			"Primary placement: Mathematics/Calculus/Derivatives (87.0%)",
+			"Secondary placements: Mathematics/Calculus/Functions (73.0%)",
+			"Using multi-folder threshold: 0.7"
+		]
+	},
+	timestamp: new Date()
 };
 
 // Validated against RoutingDecision schema ✅
@@ -642,38 +642,38 @@ const decision = {
 ```typescript
 // Create final concept artifact
 const artifact: ConceptArtifact = {
-  artifactId: `artifact_${candidate.getId()}_${decision.folderId}`,
-  candidateId: candidate.getId(),
-  title: distilled.title,
-  summary: distilled.summary,
-  content: {
-    distilled: distilled.summary,
-    rawExcerpt: candidate.getText()
-  },
-  routing: {
-    finalPath: decision.folderId,
-    crossLinks: ["Mathematics/Calculus/Functions"], // Secondary placements
-    confidence: decision.confidence,
-    provisional: false,
-    routingMethod: "vector-similarity"
-  },
-  provenance: {
-    batchId: batch.batchId,
-    window: batch.window,
-    sourceType: "ocr-capture",
-    capturedAt: new Date(batch.entries[0].timestamp)
-  },
-  modelInfo: {
-    distillationModel: "gpt-3.5-turbo",
-    embeddingModel: "text-embedding-3-small",
-    routingVersion: "2.0-single-vector"
-  },
-  audit: {
-    createdAt: new Date(),
-    processVersion: "2.0",
-    pipelineConfig: {...} // Current config snapshot
-  },
-  version: "1.0"
+	artifactId: `artifact_${candidate.getId()}_${decision.folderId}`,
+	candidateId: candidate.getId(),
+	title: distilled.title,
+	summary: distilled.summary,
+	content: {
+		distilled: distilled.summary,
+		rawExcerpt: candidate.getText()
+	},
+	routing: {
+		finalPath: decision.folderId,
+		crossLinks: ["Mathematics/Calculus/Functions"], // Secondary placements
+		confidence: decision.confidence,
+		provisional: false,
+		routingMethod: "vector-similarity"
+	},
+	provenance: {
+		batchId: batch.batchId,
+		window: batch.window,
+		sourceType: "ocr-capture",
+		capturedAt: new Date(batch.entries[0].timestamp)
+	},
+	modelInfo: {
+		distillationModel: "gpt-3.5-turbo",
+		embeddingModel: "text-embedding-3-small",
+		routingVersion: "2.0-single-vector"
+	},
+	audit: {
+		createdAt: new Date(),
+		processVersion: "2.0",
+		pipelineConfig: {...} // Current config snapshot
+	},
+	version: "1.0"
 };
 
 // Validated against ConceptArtifactSchema ✅
@@ -698,10 +698,10 @@ symlinkSync(filePath, secondaryPath); // Multi-folder placement
 
 // 4. Update folder manifest
 const manifest = {
-  folderId: "Mathematics/Calculus/Derivatives",
-  path: "Mathematics/Calculus/Derivatives", 
-  conceptCount: 13, // Incremented
-  lastUpdated: new Date()
+	folderId: "Mathematics/Calculus/Derivatives",
+	path: "Mathematics/Calculus/Derivatives", 
+	conceptCount: 13, // Incremented
+	lastUpdated: new Date()
 };
 ```
 
@@ -712,15 +712,15 @@ await vectorIndex.addConcept(artifact, embeddings);
 
 // Qdrant operations:
 await qdrantClient.upsert('concepts', {
-  points: [{
-    id: artifact.artifactId,
-    vector: embeddings.vector,
-    payload: {
-      folderId: artifact.routing.finalPath,
-      title: artifact.title,
-      contentHash: embeddings.contentHash
-    }
-  }]
+	points: [{
+		id: artifact.artifactId,
+		vector: embeddings.vector,
+		payload: {
+			folderId: artifact.routing.finalPath,
+			title: artifact.title,
+			contentHash: embeddings.contentHash
+		}
+	}]
 });
 
 // Update folder centroid (average of all concept vectors in folder)
@@ -732,13 +732,13 @@ await vectorIndex.updateFolderCentroid(artifact.routing.finalPath);
 ```
 📁 knowledge-base/
 └── 📁 Mathematics/
-    └── 📁 Calculus/
-        ├── 📁 Derivatives/
-        │   ├── 📄 chain-rule-composite-functions.json ← Primary placement
-        │   └── 📄 .folder-manifest.json
-        └── 📁 Functions/  
-            ├── 📄 chain-rule-composite-functions.json ← Secondary placement (symlink)
-            └── 📄 .folder-manifest.json
+		└── 📁 Calculus/
+				├── 📁 Derivatives/
+				│   ├── 📄 chain-rule-composite-functions.json ← Primary placement
+				│   └── 📄 .folder-manifest.json
+				└── 📁 Functions/  
+						├── 📄 chain-rule-composite-functions.json ← Secondary placement (symlink)
+						└── 📄 .folder-manifest.json
 ```
 
 ### Configuration Throughout the Pipeline
@@ -748,18 +748,18 @@ Every step uses `PipelineConfig.ts` for behavior:
 ```typescript
 // In SmartRouter.makeRoutingDecision()
 if (similarity >= this.pipelineConfig.routing.highConfidenceThreshold) {
-  return directPlacement(folder);
+	return directPlacement(folder);
 }
 
 // In QdrantVectorIndexManager.searchByContext()  
 const results = await this.client.search('concepts', {
-  limit: this.pipelineConfig.vector.contextSearchLimit,  // 30
-  threshold: this.pipelineConfig.routing.lowConfidenceThreshold  // 0.65
+	limit: this.pipelineConfig.vector.contextSearchLimit,  // 30
+	threshold: this.pipelineConfig.routing.lowConfidenceThreshold  // 0.65
 });
 
 // In VectorClusteringService.findClusters()
 if (cluster.length >= this.pipelineConfig.clustering.minClusterSize) {
-  return cluster;
+	return cluster;
 }
 ```
 
@@ -767,13 +767,13 @@ if (cluster.length >= this.pipelineConfig.clustering.minClusterSize) {
 
 ```typescript
 try {
-  const distilled = await this.distillService.distill(candidate);
+	const distilled = await this.distillService.distill(candidate);
 } catch (error) {
-  if (error.message.includes('not study-related')) {
-    throw new RoutingPipelineError('distill', 'Content is not study-related');
-  }
-  // Graceful degradation: use fallback extraction
-  const fallback = this.extractTitleFromText(candidate.getText());
+	if (error.message.includes('not study-related')) {
+		throw new RoutingPipelineError('distill', 'Content is not study-related');
+	}
+	// Graceful degradation: use fallback extraction
+	const fallback = this.extractTitleFromText(candidate.getText());
 }
 ```
 

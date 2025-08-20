@@ -9,11 +9,10 @@
  * - Statistics tracking
  */
 
-import { DistilledContent } from '../../contracts/schemas';
 import { IContentCache, CacheStats, CacheConfig } from '../IContentCache';
 
 interface CacheEntry {
-  content: DistilledContent;
+  content: any;
   expiresAt: number;
   accessCount: number;
   lastAccessed: number;
@@ -46,7 +45,7 @@ export class MemoryContentCache implements IContentCache {
     }
   }
 
-  async get(contentHash: string): Promise<DistilledContent | null> {
+  async get(contentHash: string): Promise<any | null> {
     if (!this.config.enabled) return null;
 
     const entry = this.cache.get(contentHash);
@@ -71,7 +70,7 @@ export class MemoryContentCache implements IContentCache {
     return entry.content;
   }
 
-  async set(contentHash: string, content: DistilledContent, ttl?: number): Promise<void> {
+  async set(contentHash: string, content: any, ttl?: number): Promise<void> {
     if (!this.config.enabled) return;
 
     const ttlMs = (ttl || this.config.defaultTtl!) * 1000;
@@ -115,6 +114,10 @@ export class MemoryContentCache implements IContentCache {
   async clear(): Promise<void> {
     this.cache.clear();
     this.stats = { hits: 0, misses: 0, sets: 0, evictions: 0 };
+  }
+
+  async size(): Promise<number> {
+    return this.cache.size;
   }
 
   async getStats(): Promise<CacheStats> {

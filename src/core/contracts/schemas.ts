@@ -105,27 +105,78 @@ export const DistilledContentSchema = z.object({
 
 /**
  * Individual concept extracted during multi-concept distillation
+ * 
+ * Represents a single, specific educational concept that is narrow enough
+ * to be studied as an individual flashcard. Must follow the extreme
+ * specificity requirements for folder system integration.
  */
 export const ExtractedConceptSchema = z.object({
-  title: z.string().min(1, "Title cannot be empty").max(100, "Title too long"),
-  summary: z.string().min(50, "Summary too short").max(500),
-  relevanceScore: z.number().min(0).max(1).optional(),
-  startOffset: z.number().optional(),
-  endOffset: z.number().optional(),
-});
+  title: z.string()
+    .min(1, "Title cannot be empty")
+    .max(100, "Title too long")
+    .refine(
+      title => !['Algorithms', 'Programming', 'Data Structures', 'Machine Learning'].includes(title),
+      "Title is too broad - must be specific enough for individual flashcard"
+    ),
+  summary: z.string()
+    .min(50, "Summary too short for meaningful learning")
+    .max(500, "Summary too long for flashcard format"),
+  relevanceScore: z.number()
+    .min(0, "Relevance score must be non-negative")
+    .max(1, "Relevance score cannot exceed 1")
+    .optional(),
+  startOffset: z.number()
+    .int("Start offset must be integer")
+    .min(0, "Start offset cannot be negative")
+    .optional(),
+  endOffset: z.number()
+    .int("End offset must be integer")
+    .min(0, "End offset cannot be negative")
+    .optional(),
+  difficulty: z.enum(['beginner', 'intermediate', 'advanced']).optional(),
+  category: z.string().optional(),
+}).refine(
+  data => !data.endOffset || !data.startOffset || data.endOffset >= data.startOffset,
+  "End offset must be greater than or equal to start offset"
+);
 
 /**
  * Multi-concept distillation result
- * Contains multiple concepts extracted from a single text input
+ * 
+ * Contains multiple specific educational concepts extracted from a single
+ * text input. Each concept should be individually testable and specific
+ * enough for flashcard generation.
  */
 export const MultiConceptDistillationSchema = z.object({
-  concepts: z.array(ExtractedConceptSchema).min(1).max(5),
-  sourceContentHash: z.string().min(1, "Field cannot be empty"),
-  totalConcepts: z.number().min(1),
-  processingTime: z.number().optional(),
-  cached: z.boolean().optional(),
-  distilledAt: z.date().optional(),
-});
+  concepts: z.array(ExtractedConceptSchema)
+    .min(1, "Must contain at least one concept")
+    .max(5, "Cannot exceed 5 concepts for optimal learning"),
+  sourceContentHash: z.string()
+    .min(1, "Source content hash cannot be empty"),
+  totalConcepts: z.number()
+    .int("Total concepts must be integer")
+    .min(1, "Must have at least one concept"),
+  processingTime: z.number()
+    .min(0, "Processing time cannot be negative")
+    .optional(),
+  cached: z.boolean()
+    .default(false),
+  distilledAt: z.date()
+    .default(() => new Date()),
+  modelInfo: z.object({
+    model: z.string().default('gpt-3.5-turbo'),
+    promptVersion: z.string().default('v2.0-specificity'),
+    tokensUsed: z.number().optional(),
+  }).optional(),
+  metadata: z.object({
+    ocrText: z.boolean().default(false),
+    sourceType: z.enum(['pdf', 'image', 'text', 'web']).optional(),
+    confidence: z.number().min(0).max(1).optional(),
+  }).optional(),
+}).refine(
+  data => data.concepts.length === data.totalConcepts,
+  "Total concepts count must match actual concepts array length"
+);
 
 // =============================================================================
 // CONCEPT ARTIFACT SCHEMAS - Final persisted concepts

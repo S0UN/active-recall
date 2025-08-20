@@ -14,4 +14,11 @@ export interface IBatcherService {
   getBatches(): Batch[];
   getBatchesAsJson(): string;
   clearBatches(): void;
+  
+  // Idle flush functionality
+  notifyStudyingStarted(): void;
+  notifyIdleStarted(): void;
+  
+  // State inspection (for testing and debugging)
+  getIsInStudyingMode(): boolean;
 }

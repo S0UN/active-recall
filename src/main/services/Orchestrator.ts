@@ -445,6 +445,14 @@ export class Orchestrator {
     this.idleRevalPoller.start();
   }
 
+  public notifyBatcherStudyingStarted(): void {
+    this.batcher.notifyStudyingStarted();
+  }
+
+  public notifyBatcherIdleStarted(): void {
+    this.batcher.notifyIdleStarted();
+  }
+
   private cancelPendingPipeline(): void {
     if (this.pendingPipelineTimer) {
       clearTimeout(this.pendingPipelineTimer);

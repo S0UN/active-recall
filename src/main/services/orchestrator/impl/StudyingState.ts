@@ -6,6 +6,11 @@ export class StudyingState implements IOrchestratorState {
   onEnter() {
      this.orchestrator.logger.info('Entering Studying State');
     this.orchestrator.startStudyingOcrPolling();
+    try {
+      this.orchestrator.notifyBatcherStudyingStarted();
+    } catch (error) {
+      this.orchestrator.logger.warn('Failed to notify batcher of studying state', error as Error);
+    }
   }
   onWindowChange(oldKey: string, newKey: string) {
     this.orchestrator.handleWindowChange(oldKey, newKey);

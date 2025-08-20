@@ -5,27 +5,26 @@
  * This prevents redundant API calls and improves performance.
  */
 
-import { DistilledContent } from '../contracts/schemas';
 
 /**
  * Interface for content caching
  */
 export interface IContentCache {
   /**
-   * Get cached distilled content by content hash
+   * Get cached content by content hash
    * @param contentHash - SHA-256 hash of the content
-   * @returns Promise<DistilledContent | null> - Cached result or null
+   * @returns Promise<any | null> - Cached result or null
    */
-  get(contentHash: string): Promise<DistilledContent | null>;
+  get(contentHash: string): Promise<any | null>;
 
   /**
-   * Store distilled content in cache
+   * Store content in cache
    * @param contentHash - SHA-256 hash of the content
-   * @param content - Distilled content to cache
+   * @param content - Content to cache
    * @param ttl - Optional TTL in seconds (default: 30 days)
    * @returns Promise<void>
    */
-  set(contentHash: string, content: DistilledContent, ttl?: number): Promise<void>;
+  set(contentHash: string, content: any, ttl?: number): Promise<void>;
 
   /**
    * Check if content exists in cache
@@ -46,6 +45,12 @@ export interface IContentCache {
    * @returns Promise<void>
    */
   clear(): Promise<void>;
+
+  /**
+   * Get cache size
+   * @returns Promise<number> - Number of items in cache
+   */
+  size(): Promise<number>;
 
   /**
    * Get cache statistics
