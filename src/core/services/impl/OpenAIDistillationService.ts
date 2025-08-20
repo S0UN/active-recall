@@ -6,7 +6,7 @@
  */
 
 import OpenAI from 'openai';
-import { ConceptCandidate, DistilledContent, DistilledContentSchema } from '../../contracts/schemas';
+import { ConceptCandidate, DistilledContent, DistilledContentSchema, MultiConceptDistillation, MultiConceptDistillationSchema, ExtractedConcept } from '../../contracts/schemas';
 import { 
   IDistillationService, 
   DistillationConfig, 
@@ -15,6 +15,7 @@ import {
   DistillationQuotaError 
 } from '../IDistillationService';
 import { IContentCache } from '../IContentCache';
+import { createHash } from 'crypto';
 
 export class OpenAIDistillationService implements IDistillationService {
   private readonly openAiClient: OpenAI;
@@ -125,8 +126,167 @@ export class OpenAIDistillationService implements IDistillationService {
   }
 
 
+  async distillMultiple(candidate: ConceptCandidate): Promise<MultiConceptDistillation> {
+    // Check cache first
+    const cacheKey = `multi_${candidate.contentHash}`;
+    if (this.distillationConfig.cacheEnabled) {
+      const cached = await this.contentCache.get(cacheKey);
+      if (cached) {
+        return {
+          ...cached as MultiConceptDistillation,
+          cached: true
+        };
+      }
+    }
+
+    // Check daily limits
+    if (this.requestCount >= this.dailyLimit) {
+      throw new DistillationQuotaError(
+        `Daily API limit reached (${this.dailyLimit} requests)`
+      );
+    }
+
+    try {
+      const response = await this.openAiClient.chat.completions.create({
+        model: this.distillationConfig.model || 'gpt-3.5-turbo',
+        messages: [
+          {
+            role: 'system',
+            content: this.getMultiConceptSystemPrompt()
+          },
+          {
+            role: 'user',
+            content: candidate.normalizedText
+          }
+        ],
+        response_format: { type: 'json_object' },
+        max_tokens: (this.distillationConfig.maxTokens || 200) * (this.distillationConfig.maxConceptsPerDistillation || 3),
+        temperature: this.distillationConfig.temperature || 0.1,
+      });
+
+      this.requestCount++;
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new DistillationError('Empty response from OpenAI');
+      }
+
+      const parsed = JSON.parse(content);
+      
+      // Check if no study content was found
+      if (!parsed.concepts || parsed.concepts.length === 0) {
+        throw new DistillationError('No study-related concepts found');
+      }
+
+      // Filter out any NOT_STUDY_CONTENT markers
+      const validConcepts = parsed.concepts.filter((c: any) => 
+        c.title !== 'NOT_STUDY_CONTENT' && c.summary !== 'NOT_STUDY_CONTENT'
+      );
+
+      if (validConcepts.length === 0) {
+        throw new DistillationError('Content is not study-related');
+      }
+
+      // Limit to maxConceptsPerDistillation
+      const maxConcepts = this.distillationConfig.maxConceptsPerDistillation || 5;
+      const limitedConcepts = validConcepts.slice(0, maxConcepts);
+
+      // Create individual content hashes for each concept
+      const conceptsWithHashes: ExtractedConcept[] = limitedConcepts.map((concept: any) => ({
+        title: this.sanitizeTitle(concept.title || 'Concept'),
+        summary: this.sanitizeSummary(concept.summary || ''),
+        relevanceScore: concept.relevanceScore,
+        startOffset: concept.startOffset,
+        endOffset: concept.endOffset
+      }));
+
+      const result: MultiConceptDistillation = {
+        concepts: conceptsWithHashes,
+        sourceContentHash: candidate.contentHash,
+        totalConcepts: conceptsWithHashes.length,
+        processingTime: Date.now(),
+        cached: false,
+        distilledAt: new Date()
+      };
+
+      // Validate against schema
+      const validated = MultiConceptDistillationSchema.parse(result);
+
+      // Cache the result
+      if (this.distillationConfig.cacheEnabled) {
+        await this.contentCache.set(cacheKey, validated, 30 * 24 * 60 * 60); // 30 days
+      }
+
+      return validated;
+
+    } catch (error) {
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'APITimeoutError') {
+        throw new DistillationTimeoutError(30000);
+      }
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'RateLimitError') {
+        throw new DistillationQuotaError('OpenAI rate limit exceeded');
+      }
+      if (error instanceof SyntaxError) {
+        // JSON parsing error - fallback to single concept extraction
+        return this.extractMultipleFallback(candidate);
+      }
+      
+      throw new DistillationError(
+        `OpenAI multi-concept distillation failed: ${error}`,
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
   getProvider(): string {
     return 'openai';
+  }
+
+  /**
+   * Get the system prompt for multi-concept distillation
+   */
+  private getMultiConceptSystemPrompt(): string {
+    return `Extract ALL distinct educational concepts from the provided text. Each concept should be self-contained and meaningful.
+
+Requirements:
+- IMPORTANT: If the text is NOT related to studying, learning, or educational content, return: {"concepts": []}
+- Extract between 1-5 distinct concepts maximum
+- Each concept needs: title (max 100 chars) and summary (2-5 sentences, 50-500 chars)
+- Concepts should be distinct and not overlapping
+- Order concepts by importance/relevance
+- Skip any non-educational content
+
+Study-related content includes:
+- Academic subjects (math, science, history, etc.)
+- Programming and technical concepts
+- Educational tutorials and explanations
+- Research papers and documentation
+- Learning materials and course content
+
+NOT study-related (skip these):
+- Social media posts
+- Entertainment content
+- Shopping/e-commerce
+- General web navigation
+- News articles (unless educational)
+
+Return JSON in this format:
+{
+  "concepts": [
+    {
+      "title": "Concept title here",
+      "summary": "2-5 sentence summary of the concept",
+      "relevanceScore": 0.9
+    },
+    {
+      "title": "Another concept",
+      "summary": "Summary of this concept",
+      "relevanceScore": 0.8
+    }
+  ]
+}
+
+Focus on extracting the core learning objectives and key concepts. Remove navigation, UI elements, and boilerplate text.`;
   }
 
   /**
@@ -194,6 +354,52 @@ Focus on the core concept or learning objective. Remove navigation, UI elements,
       title: this.sanitizeTitle(title),
       summary: this.sanitizeSummary(summary),
       contentHash: candidate.contentHash,
+      cached: false,
+      distilledAt: new Date()
+    };
+  }
+
+  /**
+   * Fallback extraction for multi-concept when LLM fails
+   */
+  private extractMultipleFallback(candidate: ConceptCandidate): MultiConceptDistillation {
+    // Try to split text into paragraphs or sentences as potential concepts
+    const paragraphs = candidate.normalizedText.split(/\n\n+/).filter(p => p.trim().length > 50);
+    
+    // If no good paragraphs, fall back to single concept
+    if (paragraphs.length === 0) {
+      const singleConcept: ExtractedConcept = {
+        title: this.sanitizeTitle(candidate.normalizedText.substring(0, 100)),
+        summary: this.sanitizeSummary(candidate.normalizedText.substring(0, 500)),
+        relevanceScore: 0.5
+      };
+      
+      return {
+        concepts: [singleConcept],
+        sourceContentHash: candidate.contentHash,
+        totalConcepts: 1,
+        cached: false,
+        distilledAt: new Date()
+      };
+    }
+
+    // Extract up to 3 concepts from paragraphs
+    const concepts: ExtractedConcept[] = paragraphs.slice(0, 3).map((para, index) => {
+      const sentences = para.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      const title = sentences[0]?.trim().substring(0, 100) || `Concept ${index + 1}`;
+      const summary = para.substring(0, 500);
+      
+      return {
+        title: this.sanitizeTitle(title),
+        summary: this.sanitizeSummary(summary),
+        relevanceScore: 0.5
+      };
+    });
+
+    return {
+      concepts,
+      sourceContentHash: candidate.contentHash,
+      totalConcepts: concepts.length,
       cached: false,
       distilledAt: new Date()
     };

@@ -103,6 +103,30 @@ export const DistilledContentSchema = z.object({
   distilledAt: z.date().optional(),
 });
 
+/**
+ * Individual concept extracted during multi-concept distillation
+ */
+export const ExtractedConceptSchema = z.object({
+  title: z.string().min(1, "Title cannot be empty").max(100, "Title too long"),
+  summary: z.string().min(50, "Summary too short").max(500),
+  relevanceScore: z.number().min(0).max(1).optional(),
+  startOffset: z.number().optional(),
+  endOffset: z.number().optional(),
+});
+
+/**
+ * Multi-concept distillation result
+ * Contains multiple concepts extracted from a single text input
+ */
+export const MultiConceptDistillationSchema = z.object({
+  concepts: z.array(ExtractedConceptSchema).min(1).max(5),
+  sourceContentHash: z.string().min(1, "Field cannot be empty"),
+  totalConcepts: z.number().min(1),
+  processingTime: z.number().optional(),
+  cached: z.boolean().optional(),
+  distilledAt: z.date().optional(),
+});
+
 // =============================================================================
 // CONCEPT ARTIFACT SCHEMAS - Final persisted concepts
 // =============================================================================
@@ -411,3 +435,5 @@ export type AuditEvent = z.infer<typeof AuditEventSchema>;
 // New types for corrected pipeline
 export type DistilledContent = z.infer<typeof DistilledContentSchema>;
 export type VectorEmbeddings = z.infer<typeof VectorEmbeddingsSchema>;
+export type ExtractedConcept = z.infer<typeof ExtractedConceptSchema>;
+export type MultiConceptDistillation = z.infer<typeof MultiConceptDistillationSchema>;

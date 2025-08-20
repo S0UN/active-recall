@@ -10,7 +10,7 @@
  * - Tiny prompts with JSON schema output
  */
 
-import { ConceptCandidate, DistilledContent } from '../contracts/schemas';
+import { ConceptCandidate, DistilledContent, MultiConceptDistillation } from '../contracts/schemas';
 
 /**
  * Interface for content distillation services
@@ -23,6 +23,13 @@ export interface IDistillationService {
    * @returns Promise<DistilledContent> - Title + summary + metadata
    */
   distill(candidate: ConceptCandidate): Promise<DistilledContent>;
+
+  /**
+   * Extract multiple concepts from a single candidate
+   * @param candidate - The concept candidate potentially containing multiple concepts
+   * @returns Promise<MultiConceptDistillation> - Multiple concepts with titles and summaries
+   */
+  distillMultiple?(candidate: ConceptCandidate): Promise<MultiConceptDistillation>;
 
   /**
    * Get the name of the distillation provider
@@ -41,6 +48,8 @@ export interface DistillationConfig {
   maxTokens?: number;
   temperature?: number;
   cacheEnabled?: boolean;
+  multiConceptEnabled?: boolean;
+  maxConceptsPerDistillation?: number;
 }
 
 /**
