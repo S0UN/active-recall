@@ -12,20 +12,20 @@ import { MemoryContentCache } from './core/services/impl/MemoryContentCache';
 import { BatchSchema } from './core/contracts/schemas';
 
 export async function runIntegrationTest(): Promise<void> {
-  console.log('🚀 Starting comprehensive integration test...\n');
+  console.log(' Starting comprehensive integration test...\n');
 
   try {
     // Test 1: Configuration System
-    console.log('1️⃣ Testing configuration system...');
+    console.log(' Testing configuration system...');
     const config = loadPipelineConfig();
     validatePipelineConfig(config);
-    console.log('✅ Configuration loads and validates successfully');
+    console.log(' Configuration loads and validates successfully');
     console.log(`   - High confidence threshold: ${config.routing.highConfidenceThreshold}`);
     console.log(`   - Vector dimensions: ${config.vector.defaultDimensions}`);
     console.log(`   - Min text length: ${config.textValidation.minTextLength}\n`);
 
     // Test 2: ConceptCandidate with Configuration
-    console.log('2️⃣ Testing ConceptCandidate with configuration...');
+    console.log(' Testing ConceptCandidate with configuration...');
     const mockBatch = BatchSchema.parse({
       batchId: '550e8400-e29b-41d4-a716-446655440000',
       window: 'Integration Test Window',
@@ -44,7 +44,7 @@ export async function runIntegrationTest(): Promise<void> {
       config
     );
 
-    console.log('✅ ConceptCandidate created successfully');
+    console.log(' ConceptCandidate created successfully');
     console.log(`   - Candidate ID: ${candidate.id}`);
     console.log(`   - Raw text length: ${candidate.rawText.length}`);
 
@@ -53,7 +53,7 @@ export async function runIntegrationTest(): Promise<void> {
     console.log(`   - Content hash: ${normalized.contentHash.substring(0, 16)}...\n`);
 
     // Test 3: Service Instantiation with Configuration
-    console.log('3️⃣ Testing service instantiation with configuration...');
+    console.log(' Testing service instantiation with configuration...');
     
     const cache = new MemoryContentCache();
     
@@ -79,13 +79,13 @@ export async function runIntegrationTest(): Promise<void> {
       dimensions: config.vector.defaultDimensions
     });
 
-    console.log('✅ All services instantiated successfully');
+    console.log(' All services instantiated successfully');
     console.log(`   - Distillation service: ${distillService.getProvider()}`);
     console.log(`   - Embedding service: ${embeddingService.getProvider()}`);
     console.log(`   - Vector dimensions: ${embeddingService.getDimensions()}\n`);
 
     // Test 4: SmartRouter with Configuration
-    console.log('4️⃣ Testing SmartRouter with configuration...');
+    console.log(' Testing SmartRouter with configuration...');
     
     const router = new SmartRouter(
       distillService,
@@ -99,38 +99,38 @@ export async function runIntegrationTest(): Promise<void> {
       config
     );
 
-    console.log('✅ SmartRouter created successfully');
+    console.log(' SmartRouter created successfully');
     console.log(`   - High confidence threshold: ${config.routing.highConfidenceThreshold}`);
     console.log(`   - Low confidence threshold: ${config.routing.lowConfidenceThreshold}`);
     console.log(`   - Folder creation enabled: ${config.batch.enableFolderCreation}\n`);
 
     // Test 5: Statistics and Configuration Consistency
-    console.log('5️⃣ Testing statistics and configuration consistency...');
+    console.log(' Testing statistics and configuration consistency...');
     
     const stats = await router.getRoutingStats();
-    console.log('✅ Router statistics accessible');
+    console.log(' Router statistics accessible');
     console.log(`   - Total routed: ${stats.totalRouted}`);
     console.log(`   - Average confidence: ${stats.averageConfidence}\n`);
 
     // Test 6: Expansion Opportunity (Configuration-driven)
-    console.log('6️⃣ Testing expansion opportunity detection...');
+    console.log(' Testing expansion opportunity detection...');
     
     if (config.batch.enableFolderCreation) {
       const expansion = await router.checkExpansionOpportunity(candidate);
-      console.log('✅ Expansion opportunity check completed');
+      console.log(' Expansion opportunity check completed');
       console.log(`   - Expansion suggested: ${expansion ? 'Yes' : 'No'}\n`);
     } else {
-      console.log('✅ Folder creation disabled by configuration - skipping expansion test\n');
+      console.log(' Folder creation disabled by configuration - skipping expansion test\n');
     }
 
-    console.log('🎉 ALL INTEGRATION TESTS PASSED!');
+    console.log(' ALL INTEGRATION TESTS PASSED!');
     console.log('✨ The refactored codebase is working perfectly!');
-    console.log('🔧 All configuration values are properly loaded and used');
+    console.log(' All configuration values are properly loaded and used');
     console.log('📏 All magic numbers have been successfully eliminated');
-    console.log('🧪 All services integrate seamlessly with the new configuration system');
+    console.log(' All services integrate seamlessly with the new configuration system');
 
   } catch (error) {
-    console.error('❌ Integration test failed:', error);
+    console.error(' Integration test failed:', error);
     throw error;
   }
 }

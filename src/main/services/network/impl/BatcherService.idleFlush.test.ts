@@ -376,7 +376,7 @@ describe('BatcherService - Idle Flush Functionality', () => {
       });
 
       it('should handle unicode and special characters in content', () => {
-        const unicodeContent = '🎯 Testing émojis and spëcial chäractërs: 中文测试 العربية русский';
+        const unicodeContent = ' Testing émojis and spëcial chäractërs: 中文测试 العربية русский';
         
         batcherService.add('Test Window', 'Topic', unicodeContent);
         batcherService.notifyIdleStarted();

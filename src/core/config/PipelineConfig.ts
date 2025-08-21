@@ -10,7 +10,8 @@ interface RoutingThresholds {
   lowConfidenceThreshold: number;
   newTopicThreshold: number;
   duplicateThreshold: number;
-  folderPlacementThreshold: number; // Threshold for placing in a folder
+  // Note: folderPlacementThreshold removed - was used for broken multi-folder placement
+  // New intelligent system uses binary decision: high confidence OR LLM analysis
 }
 
 interface BatchProcessingConfig {
@@ -66,8 +67,8 @@ export const DEFAULT_PIPELINE_CONFIG: PipelineConfig = {
     highConfidenceThreshold: 0.82,
     lowConfidenceThreshold: 0.65,
     newTopicThreshold: 0.5,
-    duplicateThreshold: 0.9,
-    folderPlacementThreshold: 0.7
+    duplicateThreshold: 0.75
+    // Note: folderPlacementThreshold removed - not used in intelligent routing system
   },
   
   batch: {
@@ -154,8 +155,8 @@ export function loadPipelineConfig(): PipelineConfig {
       highConfidenceThreshold: parseFloatWithFallback(process.env.HIGH_CONFIDENCE_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.highConfidenceThreshold),
       lowConfidenceThreshold: parseFloatWithFallback(process.env.LOW_CONFIDENCE_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.lowConfidenceThreshold),
       newTopicThreshold: parseFloatWithFallback(process.env.NEW_TOPIC_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.newTopicThreshold),
-      duplicateThreshold: parseFloatWithFallback(process.env.DUPLICATE_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.duplicateThreshold),
-      folderPlacementThreshold: parseFloatWithFallback(process.env.FOLDER_PLACEMENT_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.folderPlacementThreshold)
+      duplicateThreshold: parseFloatWithFallback(process.env.DUPLICATE_THRESHOLD, DEFAULT_PIPELINE_CONFIG.routing.duplicateThreshold)
+      // Note: FOLDER_PLACEMENT_THRESHOLD env var no longer used - was for broken multi-folder placement
     },
     
     batch: {

@@ -41,6 +41,7 @@ export interface VectorSearchOptions {
   vector: number[];
   threshold: number;
   limit?: number;
+  filterByFolder?: string;
 }
 
 /**
@@ -73,11 +74,12 @@ export interface IVectorIndexManager {
   searchByContext(options: VectorSearchOptions): Promise<SimilarConcept[]>;
 
   /**
-   * Get all context vectors for concepts in a folder
+   * Get context vectors for concepts in a folder
    * Used by clustering services for analysis
    * @param folderId - Folder to retrieve vectors from
+   * @param limit - Maximum number of members to return
    */
-  getFolderMembers(folderId: string): Promise<{ conceptId: string; vector: number[] }[]>;
+  getFolderMembers(folderId: string, limit?: number): Promise<{ conceptId: string; vector: number[]; confidence?: number }[]>;
 
   /**
    * Update folder centroid vector
