@@ -21,44 +21,44 @@ The system follows a pipeline architecture: **CAPTURE → DISTILL → EMBED → 
 ```typescript
 // Input to the system
 Batch {
-  batchId: UUID
-  topic: string
-  entries: Entry[]
-  sessionMarkers?: SessionMarker
+	batchId: UUID
+	topic: string
+	entries: Entry[]
+	sessionMarkers?: SessionMarker
 }
 
 // After normalization
 ConceptCandidate {
-  candidateId: string (deterministic)
-  rawText: string
-  normalizedText: string  
-  contentHash: string
-  source: SourceInfo
+	candidateId: string (deterministic)
+	rawText: string
+	normalizedText: string  
+	contentHash: string
+	source: SourceInfo
 }
 
 // After LLM distillation
 DistilledContent {
-  title: string (1-100 chars)
-  summary: string (50-500 chars)
-  keyPoints: string[]
-  studyQuestions: string[]
-  confidence: number
+	title: string (1-100 chars)
+	summary: string (50-500 chars)
+	keyPoints: string[]
+	studyQuestions: string[]
+	confidence: number
 }
 
 // After embedding generation
 VectorEmbeddings {
-  vector: number[]
-  metadata: EmbeddingMetadata
+	vector: number[]
+	metadata: EmbeddingMetadata
 }
 
 // Final storage
 ConceptArtifact {
-  id: UUID
-  candidateId: string
-  distilledContent: DistilledContent
-  embeddings: VectorEmbeddings
-  folderPath: FolderPath
-  confidence: number
+	id: UUID
+	candidateId: string
+	distilledContent: DistilledContent
+	embeddings: VectorEmbeddings
+	folderPath: FolderPath
+	confidence: number
 }
 ```
 
@@ -97,36 +97,36 @@ ConceptArtifact {
 #### Folder Structure
 ```typescript
 FolderManifest {
-  path: FolderPath
-  name: string
-  description?: string
-  createdAt: Date
-  provisional: boolean  // Temporary folders needing proper names
+	path: FolderPath
+	name: string
+	description?: string
+	createdAt: Date
+	provisional: boolean  // Temporary folders needing proper names
 }
 
 FolderPath {
-  segments: string[]
-  depth: number
-  toString(): string // "Mathematics/Calculus/Derivatives"
+	segments: string[]
+	depth: number
+	toString(): string // "Mathematics/Calculus/Derivatives"
 }
 ```
 
 #### Repository Layer (`src/core/contracts/repositories.ts`)
 ```typescript
 IFolderRepository {
-  create(path, manifest)
-  findByPath(path)
-  listChildren(path)
-  rename(oldPath, newPath)
-  delete(path)
-  findProvisional()
-  findLarge(minArtifacts)  // For expansion triggers
+	create(path, manifest)
+	findByPath(path)
+	listChildren(path)
+	rename(oldPath, newPath)
+	delete(path)
+	findProvisional()
+	findLarge(minArtifacts)  // For expansion triggers
 }
 
 IConceptArtifactRepository {
-  save(artifact)
-  findByPath(path)
-  updatePath(artifactId, newPath) // For folder moves
+	save(artifact)
+	findByPath(path)
+	updatePath(artifactId, newPath) // For folder moves
 }
 ```
 
@@ -135,36 +135,36 @@ IConceptArtifactRepository {
 ### Current Data Flow
 ```
 [Raw Input] 
-    ↓ 
+		↓ 
 [ConceptCandidate] 
-    ↓ (OpenAI distillation)
+		↓ (OpenAI distillation)
 [DistilledContent]
-    ↓ (Embedding generation) 
+		↓ (Embedding generation) 
 [VectorEmbeddings]
-    ↓ (Vector similarity search)
+		↓ (Vector similarity search)
 [FolderMatch[]]
-    ↓ (makeRoutingDecision - BROKEN/TODO)
+		↓ (makeRoutingDecision - BROKEN/TODO)
 [RoutingDecision]
-    ↓
+		↓
 [ConceptArtifact stored in folder]
 ```
 
 ### Proposed Enhanced Data Flow  
 ```
 [Raw Input]
-    ↓
+		↓
 [ConceptCandidate] 
-    ↓ (OpenAI distillation)
+		↓ (OpenAI distillation)
 [DistilledContent]
-    ↓ (Embedding generation)
+		↓ (Embedding generation)
 [VectorEmbeddings] 
-    ↓ (System state detection)
+		↓ (System state detection)
 [Bootstrap/Normal Mode]
-    ↓ (Context filtering)
+		↓ (Context filtering)
 [RelevantFolderContext]
-    ↓ (LLM academic analysis) 
+		↓ (LLM academic analysis) 
 [IntelligentPlacementDecision]
-    ↓ (Execution + Discovery link creation)
+		↓ (Execution + Discovery link creation)
 [ConceptArtifact + DiscoveryLinks]
 ```
 
@@ -214,79 +214,79 @@ IConceptArtifactRepository {
 #### 1. IIntelligentFolderService
 ```typescript
 interface IIntelligentFolderService {
-  // Main routing decision with academic intelligence
-  analyzePlacement(request: PlacementAnalysisRequest): Promise<PlacementDecision>
-  
-  // Bootstrap empty systems
-  bootstrapSystem(initialTopics: DistilledContent[]): Promise<BootstrapResult>
-  
-  // Smart context filtering for large systems
-  getRelevantContext(topicEmbedding: number[]): Promise<FolderContext[]>
-  
-  // Folder reorganization intelligence
-  analyzeForReorganization(folderPath: string): Promise<ReorganizationPlan>
+	// Main routing decision with academic intelligence
+	analyzePlacement(request: PlacementAnalysisRequest): Promise<PlacementDecision>
+	
+	// Bootstrap empty systems
+	bootstrapSystem(initialTopics: DistilledContent[]): Promise<BootstrapResult>
+	
+	// Smart context filtering for large systems
+	getRelevantContext(topicEmbedding: number[]): Promise<FolderContext[]>
+	
+	// Folder reorganization intelligence
+	analyzeForReorganization(folderPath: string): Promise<ReorganizationPlan>
 }
 
 interface PlacementAnalysisRequest {
-  distilledTopic: DistilledContent
-  systemState: SystemState  // BOOTSTRAP | GROWING | MATURE
-  relevantFolders: FolderContext[]
-  existingStructure: FolderTree
+	distilledTopic: DistilledContent
+	systemState: SystemState  // BOOTSTRAP | GROWING | MATURE
+	relevantFolders: FolderContext[]
+	existingStructure: FolderTree
 }
 
 interface PlacementDecision {
-  action: 'place_existing' | 'create_new' | 'reorganize_first'
-  
-  // For placement
-  primaryLocation?: string
-  confidence: number
-  
-  // For new folder creation  
-  newFolderPath?: string
-  hierarchyLevel: 'domain' | 'field' | 'subfield' | 'topic' | 'technique'
-  intermediateCreations?: string[] // Parent folders to create
-  
-  // For reorganization
-  reorganizationPlan?: ReorganizationPlan
-  
-  reasoning: string
-  academicDomain: string
+	action: 'place_existing' | 'create_new' | 'reorganize_first'
+	
+	// For placement
+	primaryLocation?: string
+	confidence: number
+	
+	// For new folder creation  
+	newFolderPath?: string
+	hierarchyLevel: 'domain' | 'field' | 'subfield' | 'topic' | 'technique'
+	intermediateCreations?: string[] // Parent folders to create
+	
+	// For reorganization
+	reorganizationPlan?: ReorganizationPlan
+	
+	reasoning: string
+	academicDomain: string
 }
 ```
 
 #### 2. FolderDiscoveryService
 ```typescript
 interface IFolderDiscoveryService {
-  // Get unified folder contents (local + discovered)
-  getFolderContents(folderPath: string): Promise<UnifiedFolderContents>
-  
-  // Find concepts from other folders via similarity
-  findDiscoveredConcepts(folderPath: string, threshold: number): Promise<DiscoveredConcept[]>
-  
-  // Find related folders via centroid similarity  
-  findRelatedFolders(folderPath: string, threshold: number): Promise<RelatedFolder[]>
+	// Get unified folder contents (local + discovered)
+	getFolderContents(folderPath: string): Promise<UnifiedFolderContents>
+	
+	// Find concepts from other folders via similarity
+	findDiscoveredConcepts(folderPath: string, threshold: number): Promise<DiscoveredConcept[]>
+	
+	// Find related folders via centroid similarity  
+	findRelatedFolders(folderPath: string, threshold: number): Promise<RelatedFolder[]>
 }
 
 interface UnifiedFolderContents {
-  // Content that actually lives here
-  localConcepts: ConceptArtifact[]
-  localSubfolders: string[]
-  
-  // Content discoverable from other areas
-  discoveredConcepts: DiscoveredConcept[]
-  relatedFolders: RelatedFolder[]
+	// Content that actually lives here
+	localConcepts: ConceptArtifact[]
+	localSubfolders: string[]
+	
+	// Content discoverable from other areas
+	discoveredConcepts: DiscoveredConcept[]
+	relatedFolders: RelatedFolder[]
 }
 ```
 
 #### 3. FolderCentroidManager
 ```typescript
 interface IFolderCentroidManager {
-  // Calculate and store folder centroids
-  calculateCentroid(folderPath: string): Promise<number[]>
-  updateCentroid(folderPath: string): Promise<void>
-  
-  // Search similar folders by centroid
-  findSimilarFolders(folderPath: string, limit: number): Promise<FolderSimilarity[]>
+	// Calculate and store folder centroids
+	calculateCentroid(folderPath: string): Promise<number[]>
+	updateCentroid(folderPath: string): Promise<void>
+	
+	// Search similar folders by centroid
+	findSimilarFolders(folderPath: string, limit: number): Promise<FolderSimilarity[]>
 }
 ```
 

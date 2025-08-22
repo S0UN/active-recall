@@ -17,7 +17,8 @@ import {
   VectorDimensionError,
   VectorIndexConnectionError,
   VectorSearchOptions,
-  UpsertConceptOptions
+  UpsertConceptOptions,
+  MultiFolderPlacement
 } from '../IVectorIndexManager';
 import { VectorEmbeddings } from '../../contracts/schemas';
 
@@ -72,11 +73,11 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
   }
 
   async upsert(options: UpsertConceptOptions): Promise<void> {
-    const { conceptId, embeddings, folderId } = options;
+    const { conceptId, embeddings, folderId, placements } = options;
     
     this.validateVectorDimensions(embeddings);
 
-    const payload = this.createPayload(conceptId, embeddings, folderId);
+    const payload = this.createPayload(conceptId, embeddings, folderId, placements);
 
     try {
       await this.upsertVectorPoints(conceptId, embeddings, payload);
@@ -88,13 +89,77 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
     }
   }
 
-  private createPayload(conceptId: string, embeddings: VectorEmbeddings, folderId?: string): Record<string, unknown> {
+  /**
+   * Create payload for vector storage with multi-folder support
+   * Maintains backward compatibility while supporting new placement structure
+   */
+  private createPayload(
+    conceptId: string, 
+    embeddings: VectorEmbeddings, 
+    folderId?: string,
+    placements?: MultiFolderPlacement
+  ): Record<string, unknown> {
+    const basePayload = this.createBasePayload(conceptId, embeddings);
+    const folderPayload = this.createFolderPayload(folderId, placements);
+    
+    return {
+      ...basePayload,
+      ...folderPayload
+    };
+  }
+
+  /**
+   * Create core payload fields that are always present
+   */
+  private createBasePayload(conceptId: string, embeddings: VectorEmbeddings): Record<string, unknown> {
     return {
       concept_id: conceptId,
-      folder_id: folderId || null,
       content_hash: embeddings.contentHash,
       model: embeddings.model,
       embedded_at: embeddings.embeddedAt?.toISOString()
+    };
+  }
+
+  /**
+   * Create folder-related payload fields with backward compatibility
+   */
+  private createFolderPayload(
+    legacyFolderId?: string,
+    placements?: MultiFolderPlacement
+  ): Record<string, unknown> {
+    if (placements) {
+      return this.createMultiFolderPayload(placements);
+    }
+    
+    return this.createLegacyFolderPayload(legacyFolderId);
+  }
+
+  /**
+   * Create payload for new multi-folder structure
+   */
+  private createMultiFolderPayload(placements: MultiFolderPlacement): Record<string, unknown> {
+    return {
+      // Backward compatibility: primary folder also stored as folder_id
+      folder_id: placements.primary,
+      
+      // New multi-folder structure
+      primary_folder: placements.primary,
+      reference_folders: placements.references,
+      placement_confidences: placements.confidences
+    };
+  }
+
+  /**
+   * Create payload for legacy single-folder structure
+   */
+  private createLegacyFolderPayload(folderId?: string): Record<string, unknown> {
+    return {
+      // Legacy single folder support
+      folder_id: folderId || null,
+      
+      // Initialize multi-folder fields as empty for consistency
+      primary_folder: null,
+      reference_folders: []
     };
   }
 
@@ -102,15 +167,49 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
     await this.upsertToCollection(this.collections.concepts, conceptId, embeddings.vector, payload);
   }
 
+  /**
+   * Upsert point to Qdrant collection with proper ID conversion
+   * Converts string IDs to UUIDs as required by Qdrant
+   */
   private async upsertToCollection(collection: string, id: string, vector: number[], payload: Record<string, unknown>): Promise<void> {
+    const qdrantId = this.convertToQdrantId(id);
+    
     await this.client.upsert(collection, {
       wait: true,
       points: [{
-        id,
+        id: qdrantId,
         vector,
-        payload
+        payload: {
+          ...payload,
+          original_id: id // Store original ID for reverse lookup
+        }
       }]
     });
+  }
+
+  /**
+   * Convert string ID to UUID for Qdrant compatibility
+   * Uses deterministic UUID generation based on string content
+   */
+  private convertToQdrantId(id: string): string {
+    // For now, use a simple hash-to-UUID conversion
+    // In production, might want to use a proper UUID library
+    const hash = this.simpleHash(id);
+    const uuid = `${hash.slice(0,8)}-${hash.slice(8,12)}-4${hash.slice(13,16)}-${hash.slice(16,20)}-${hash.slice(20,32)}`;
+    return uuid;
+  }
+
+  /**
+   * Simple deterministic hash function for ID conversion
+   */
+  private simpleHash(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash).toString(16).padStart(32, '0');
   }
 
   async searchByTitle(options: VectorSearchOptions): Promise<SimilarConcept[]> {
@@ -153,11 +252,18 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
     const payload = hit.payload as Record<string, unknown> | undefined;
     
     return {
-      conceptId: String(hit.id),
+      conceptId: this.extractOriginalId(payload) || String(hit.id),
       similarity: hit.score,
       folderId: this.extractFolderId(payload),
       metadata: payload || {}
     };
+  }
+
+  /**
+   * Extract original concept ID from payload
+   */
+  private extractOriginalId(payload?: Record<string, unknown>): string | undefined {
+    return payload?.original_id as string || payload?.concept_id as string;
   }
 
   private extractFolderId(payload: Record<string, unknown> | undefined): string | undefined {
@@ -442,6 +548,150 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
       }
     } catch {
       // Ignore errors when deleting non-existent exemplars
+    }
+  }
+
+  /**
+   * Search for concepts by folder (including primary and reference placements)
+   * Returns concepts where the folder is either primary or reference
+   */
+  async searchByFolder(folderId: string, includeReferences: boolean = true): Promise<SimilarConcept[]> {
+    try {
+      const filter = this.createFolderSearchFilter(folderId, includeReferences);
+      
+      // Use scroll instead of search when we only need filtering, not vector similarity
+      const result = await this.client.scroll(this.collections.concepts, {
+        filter,
+        limit: 1000,
+        with_payload: true
+      });
+
+      return result.points.map(hit => this.mapFolderScrollHitToSimilarConcept(hit, folderId));
+    } catch (error) {
+      throw new VectorIndexError(
+        `Failed to search concepts by folder ${folderId}: ${error}`,
+        this.normalizeError(error)
+      );
+    }
+  }
+
+  /**
+   * Get all unique folder IDs that have concepts (primary or reference)
+   */
+  async getAllFolderIds(): Promise<string[]> {
+    try {
+      const result = await this.client.scroll(this.collections.concepts, {
+        filter: undefined,
+        limit: 10000,
+        with_payload: true
+      });
+
+      const folderIds = new Set<string>();
+      
+      for (const point of result.points) {
+        this.extractFolderIdsFromPayload(point.payload, folderIds);
+      }
+      
+      return Array.from(folderIds).filter(id => id !== null);
+    } catch (error) {
+      throw new VectorIndexError(
+        `Failed to get all folder IDs: ${error}`,
+        this.normalizeError(error)
+      );
+    }
+  }
+
+  /**
+   * Create Qdrant filter for searching by folder
+   * Supports both primary and reference folder searches
+   */
+  private createFolderSearchFilter(folderId: string, includeReferences: boolean): any {
+    if (!includeReferences) {
+      // Only search primary folders
+      return {
+        must: [
+          { key: 'primary_folder', match: { value: folderId } }
+        ]
+      };
+    }
+
+    // Search both primary and reference folders
+    return {
+      should: [
+        { key: 'primary_folder', match: { value: folderId } },
+        { key: 'reference_folders', match: { any: [folderId] } },
+        // Backward compatibility with legacy folder_id
+        { key: 'folder_id', match: { value: folderId } }
+      ]
+    };
+  }
+
+  /**
+   * Map search hit to SimilarConcept with folder context
+   */
+  private mapFolderSearchHitToSimilarConcept(hit: any, searchedFolderId: string): SimilarConcept {
+    const payload = hit.payload || {};
+    const isPrimary = this.determineIfPrimaryFolder(payload, searchedFolderId);
+    
+    return {
+      conceptId: this.extractOriginalId(payload) || String(hit.id),
+      similarity: hit.score || 1.0,
+      folderId: searchedFolderId,
+      isPrimary,
+      metadata: payload
+    };
+  }
+
+  /**
+   * Map scroll hit to SimilarConcept with folder context (no similarity score)
+   */
+  private mapFolderScrollHitToSimilarConcept(hit: any, searchedFolderId: string): SimilarConcept {
+    const payload = hit.payload || {};
+    const isPrimary = this.determineIfPrimaryFolder(payload, searchedFolderId);
+    
+    return {
+      conceptId: this.extractOriginalId(payload) || String(hit.id),
+      similarity: 1.0, // No similarity score in scroll results
+      folderId: searchedFolderId,
+      isPrimary,
+      metadata: payload
+    };
+  }
+
+  /**
+   * Determine if the searched folder is the primary folder for this concept
+   */
+  private determineIfPrimaryFolder(payload: any, searchedFolderId: string): boolean {
+    // Check new multi-folder structure
+    if (payload.primary_folder) {
+      return payload.primary_folder === searchedFolderId;
+    }
+    
+    // Fallback to legacy structure (assume primary if folder_id matches)
+    return payload.folder_id === searchedFolderId;
+  }
+
+  /**
+   * Extract all folder IDs from a concept's payload
+   */
+  private extractFolderIdsFromPayload(payload: any, folderIds: Set<string>): void {
+    if (!payload) return;
+    
+    // Add primary folder
+    if (payload.primary_folder) {
+      folderIds.add(payload.primary_folder);
+    }
+    
+    // Add reference folders
+    if (Array.isArray(payload.reference_folders)) {
+      payload.reference_folders.forEach((folderId: string) => {
+        if (folderId) folderIds.add(folderId);
+      });
+    }
+    
+    // Backward compatibility: add legacy folder_id
+    if (payload.folder_id && !payload.primary_folder) {
+      folderIds.add(payload.folder_id);
     }
   }
 }

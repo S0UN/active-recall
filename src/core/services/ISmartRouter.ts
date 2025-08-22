@@ -12,11 +12,29 @@
 import { ConceptCandidate } from '../domain/ConceptCandidate';
 
 /**
- * Routing decision with full explanation
+ * Individual folder placement decision
+ */
+export interface FolderPlacement {
+  folderId: string;
+  folderPath: string;
+  confidence: number;
+  type: 'primary' | 'reference';
+  similarity: number;
+  reason?: string;
+}
+
+/**
+ * Routing decision with full explanation and multi-folder support
  */
 export interface RoutingDecision {
   action: 'route' | 'unsorted' | 'duplicate' | 'create_folder' | 'review';
+  
+  // Backward compatibility - primary folder
   folderId?: string;
+  
+  // NEW: Multi-folder placements (primary + references)
+  placements?: FolderPlacement[];
+  
   duplicateId?: string;
   suggestedFolderName?: string;
   confidence: number;

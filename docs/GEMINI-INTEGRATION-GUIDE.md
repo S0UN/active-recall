@@ -174,14 +174,14 @@ GEMINI_PRO_EXPERIMENTAL_THRESHOLD=100000
 
 ### Design Principles
 
-✅ **SOLID Principles Applied:**
+**SOLID Principles Applied:**
 - **Single Responsibility**: Each class has one clear purpose
 - **Open/Closed**: Extensible for new models without modification
 - **Liskov Substitution**: Interchangeable with other providers
 - **Interface Segregation**: Focused, minimal interfaces
 - **Dependency Inversion**: Depends on abstractions
 
-✅ **TypeScript 2025 Best Practices:**
+**TypeScript 2025 Best Practices:**
 - Strict typing with no `any` types
 - Readonly properties for immutable config
 - Explicit type unions with validation
@@ -367,7 +367,7 @@ node -e "console.log(require('./dist/core/config/GeminiConfig.js').loadGeminiCon
 
 ### 1. **Configuration Management**
 
-✅ **Do:**
+**Do:**
 - Use environment variables for all configuration
 - Set appropriate rate limits for your use case
 - Enable caching to reduce costs
@@ -380,7 +380,7 @@ node -e "console.log(require('./dist/core/config/GeminiConfig.js').loadGeminiCon
 
 ### 2. **Error Handling**
 
-✅ **Do:**
+**Do:**
 ```typescript
 try {
   const result = await service.distill(candidate);
@@ -403,26 +403,26 @@ try {
 
 ### 3. **Performance Optimization**
 
-✅ **Optimal Batch Sizes:**
+**Optimal Batch Sizes:**
 - Flash-Lite: 40,000 characters (~10K tokens)
 - Flash: 60,000 characters (~15K tokens)  
 - Pro: 100,000 characters (~25K tokens)
 
-✅ **Caching Strategy:**
+**Caching Strategy:**
 - Enable for repeated content
 - Use appropriate TTL (30 days recommended)
 - Monitor cache hit rates
 
 ### 4. **Monitoring & Observability**
 
-✅ **Track Key Metrics:**
+**Track Key Metrics:**
 - Daily API usage vs. limits
 - Cache hit/miss ratios
 - Error rates by type
 - Average response times
 - Cost per concept extracted
 
-✅ **Set Up Alerts:**
+**Set Up Alerts:**
 - Quota usage > 80%
 - Error rate > 5%
 - Response time > 30s
@@ -430,13 +430,13 @@ try {
 
 ### 5. **Security**
 
-✅ **API Key Security:**
+**API Key Security:**
 - Store in environment variables only
 - Rotate keys regularly
 - Use separate keys for dev/staging/prod
 - Monitor for unauthorized usage
 
-✅ **Content Safety:**
+**Content Safety:**
 - Use appropriate harm block thresholds
 - Validate input content
 - Log safety filter triggers
@@ -444,13 +444,13 @@ try {
 
 ### 6. **Testing Strategy**
 
-✅ **Test Coverage:**
+**Test Coverage:**
 - Unit tests for configuration parsing
 - Integration tests with mocked API
 - End-to-end tests with real API (sparingly)
 - Performance tests with realistic data
 
-✅ **Test Data:**
+**Test Data:**
 - Use representative educational content
 - Include edge cases (OCR errors, special characters)
 - Test with different content lengths

@@ -77,7 +77,7 @@ describe('QdrantVectorIndexManager', () => {
       expect(manager.getDimensions()).toBe(1536);
     });
 
-    it('should upsert concept vector to single collection', async () => {
+    it('should upsert concept vector with legacy single folder format', async () => {
       await manager.upsert({
         conceptId: 'concept-123',
         embeddings: mockEmbeddings,
@@ -86,22 +86,30 @@ describe('QdrantVectorIndexManager', () => {
 
       expect(mockUpsert).toHaveBeenCalledTimes(1);
       
-      // Check concepts collection upsert
+      // Verify storage includes both legacy and new format for compatibility
       expect(mockUpsert).toHaveBeenCalledWith('concepts', {
         wait: true,
         points: [{
-          id: 'concept-123',
+          id: expect.stringMatching(/[0-9a-f-]+/), // UUID format
           vector: mockEmbeddings.vector,
           payload: expect.objectContaining({
+            // Core identification
             concept_id: 'concept-123',
+            original_id: 'concept-123',
+            content_hash: 'test-hash',
+            
+            // Legacy compatibility
             folder_id: 'folder-456',
-            content_hash: 'test-hash'
+            
+            // New multi-folder structure (initialized as empty)
+            primary_folder: null,
+            reference_folders: []
           })
         }]
       });
     });
 
-    it('should upsert without folder assignment', async () => {
+    it('should upsert concept without folder assignment', async () => {
       await manager.upsert({
         conceptId: 'concept-123',
         embeddings: mockEmbeddings
@@ -112,7 +120,10 @@ describe('QdrantVectorIndexManager', () => {
         expect.objectContaining({
           points: [expect.objectContaining({
             payload: expect.objectContaining({
-              folder_id: null
+              concept_id: 'concept-123',
+              folder_id: null,
+              primary_folder: null,
+              reference_folders: []
             })
           })]
         })
@@ -223,11 +234,12 @@ describe('QdrantVectorIndexManager', () => {
       expect(mockUpsert).toHaveBeenCalledWith('folder_centroids', {
         wait: true,
         points: [{
-          id: 'folder-123_centroid',
+          id: expect.stringMatching(/[0-9a-f-]+/), // UUID format
           vector: centroid,
           payload: expect.objectContaining({
             folder_id: 'folder-123',
-            type: 'centroid'
+            type: 'centroid',
+            original_id: 'folder-123_centroid'
           })
         }]
       });

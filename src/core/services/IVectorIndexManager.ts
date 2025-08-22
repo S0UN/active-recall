@@ -20,6 +20,7 @@ export interface SimilarConcept {
   conceptId: string;
   similarity: number;
   folderId?: string;
+  isPrimary?: boolean; // NEW: Indicates if this folder is the primary location
   metadata?: Record<string, any>;
 }
 
@@ -45,12 +46,22 @@ export interface VectorSearchOptions {
 }
 
 /**
+ * Multi-folder placement information
+ */
+export interface MultiFolderPlacement {
+  primary: string;
+  references: string[];
+  confidences: Record<string, number>;
+}
+
+/**
  * Options for upserting concept vectors
  */
 export interface UpsertConceptOptions {
   conceptId: string;
   embeddings: VectorEmbeddings;
-  folderId?: string;
+  folderId?: string; // Backward compatibility
+  placements?: MultiFolderPlacement; // NEW: Multi-folder support
 }
 
 /**
@@ -80,6 +91,18 @@ export interface IVectorIndexManager {
    * @param limit - Maximum number of members to return
    */
   getFolderMembers(folderId: string, limit?: number): Promise<{ conceptId: string; vector: number[]; confidence?: number }[]>;
+
+  /**
+   * Search for concepts by folder (including primary and reference placements)
+   * @param folderId - Folder to search in
+   * @param includeReferences - Whether to include concepts where this folder is a reference
+   */
+  searchByFolder(folderId: string, includeReferences?: boolean): Promise<SimilarConcept[]>;
+
+  /**
+   * Get all unique folder IDs that have concepts
+   */
+  getAllFolderIds(): Promise<string[]>;
 
   /**
    * Update folder centroid vector

@@ -1,22 +1,244 @@
 # Complete Code Architecture Documentation
 
-## Overview
+## Purpose and Scope
 
-This document provides a comprehensive breakdown of every file in the `src/core` directory, explaining its purpose, key components, and relationships with other parts of the system. This is the definitive guide to understanding the complete Active Recall core codebase.
+This document serves as the comprehensive implementation guide for the Active Recall system core (`src/core`). It provides detailed explanations of every file, class, interface, and service in the codebase, showing exactly how each component works and how they interact to create the intelligent concept routing system.
 
-## Directory Structure
+**Target Audience**: Developers who need to understand, modify, or extend the core system functionality.
+
+**What This Document Covers**:
+- File-by-file breakdown of all core components
+- Service architecture and dependency relationships  
+- Data flow through the DISTILL → EMBED → ROUTE pipeline
+- Implementation patterns and design decisions
+- Testing strategies and quality assurance approaches
+- Configuration system and environment management
+
+## System Architecture Overview
+
+The Active Recall core follows Clean Architecture principles with clear separation of concerns:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        APPLICATION LAYER                         │
+│  SmartRouter (Orchestration) → RoutingPipeline (Coordination)   │
+└─────────────────────┬──────────────────────────────────────────┘
+                      │
+┌─────────────────────┴──────────────────────────────────────────┐
+│                        SERVICE LAYER                           │
+│  IDistillationService → IEmbeddingService → IVectorIndexManager │
+│  IDuplicateDetectionService → IFolderScoringService            │
+└─────────────────────┬──────────────────────────────────────────┘
+                      │
+┌─────────────────────┴──────────────────────────────────────────┐
+│                         DOMAIN LAYER                           │
+│  ConceptCandidate → DistilledContent → VectorEmbeddings       │
+│  RoutingDecision → ConceptArtifact                            │
+└─────────────────────┬──────────────────────────────────────────┘
+                      │
+┌─────────────────────┴──────────────────────────────────────────┐
+│                      INFRASTRUCTURE LAYER                      │
+│  QdrantClient → OpenAI API → FileSystem                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Directory Structure and Purpose
 
 ```
 src/core/
-├── config/                 # Configuration system
-├── contracts/              # Data schemas and repository interfaces
-├── domain/                 # Domain models and business logic
-├── services/               # Service interfaces and implementations
-│   ├── impl/              # Concrete service implementations
-│   └── integration/       # Integration tests
-├── storage/               # Data persistence implementations  
-└── utils/                 # Utility functions
+├── config/                 # Configuration Management
+│   ├── PipelineConfig.ts      # Central configuration interface
+│   ├── ConfigSchema.ts        # Zod validation schemas  
+│   └── ConfigService.ts       # Configuration loading service
+│
+├── contracts/              # Data Contracts & Interfaces
+│   ├── schemas.ts            # All Zod schemas for runtime validation
+│   ├── repositories.ts       # Repository interface definitions
+│   └── integration.test.ts   # Contract integration tests
+│
+├── domain/                 # Business Domain Models
+│   ├── ConceptCandidate.ts   # Core domain model for concept routing
+│   └── FolderPath.ts        # Value object for folder hierarchies
+│
+├── services/               # Service Layer Architecture
+│   ├── ISmartRouter.ts          # Main orchestration interface
+│   ├── IDistillationService.ts  # Content enrichment interface
+│   ├── IEmbeddingService.ts     # Vector generation interface
+│   ├── IVectorIndexManager.ts   # Vector storage interface
+│   │
+│   ├── impl/               # Concrete Implementations
+│   │   ├── SmartRouter.ts         # Pipeline orchestrator
+│   │   ├── RoutingPipeline.ts     # Workflow coordinator  
+│   │   ├── OpenAIDistillationService.ts # LLM content processing
+│   │   ├── OpenAIEmbeddingService.ts    # Vector generation
+│   │   ├── QdrantVectorIndexManager.ts  # Vector database operations
+│   │   ├── DuplicateDetectionService.ts # Duplicate management
+│   │   ├── FolderScoringService.ts      # Similarity scoring
+│   │   └── RoutingDecisionMaker.ts      # Decision logic
+│   │
+│   └── integration/        # Integration Test Suite
+│       ├── PipelineIntegration.test.ts    # End-to-end workflow tests
+│       ├── IntelligentFolderSystem.*.test.ts # System-level validation
+│       └── ComprehensiveSystem.real.test.ts   # Production simulation
+│
+├── storage/               # Data Persistence Layer
+│   └── FileSystemArtifactRepository.ts # File-based concept storage
+│
+└── utils/                 # Pure Utility Functions
+    ├── VectorMathOperations.ts    # Mathematical vector operations
+    └── IdempotencyUtils.ts        # Deterministic ID generation
 ```
+
+## Core Pipeline Architecture: DISTILL → EMBED → ROUTE
+
+Before diving into individual files, it's crucial to understand the central data flow that drives the entire system:
+
+### Pipeline Overview
+
+```mermaid
+graph TD
+    A[Raw OCR Text] --> B[ConceptCandidate]
+    B --> C[SmartRouter]
+    
+    C --> D[RoutingPipeline]
+    
+    D --> E[DISTILL Phase]
+    D --> F[EMBED Phase]  
+    D --> G[ROUTE Phase]
+    
+    E --> H[OpenAIDistillationService]
+    F --> I[OpenAIEmbeddingService]
+    G --> J[QdrantVectorIndexManager]
+    G --> K[DuplicateDetectionService]
+    G --> L[FolderScoringService]
+    
+    H --> M[DistilledContent]
+    I --> N[VectorEmbeddings]
+    J --> O[SimilarConcepts]
+    K --> P[DuplicateCheckResult]
+    L --> Q[FolderScores]
+    
+    M --> R[RoutingDecision]
+    N --> R
+    O --> R
+    P --> R
+    Q --> R
+    
+    R --> S[ConceptArtifact]
+    S --> T[FileSystemStorage]
+```
+
+### Phase-by-Phase Breakdown
+
+#### Phase 1: DISTILL - Content Enhancement
+```typescript
+// Raw OCR text from browser extension
+const rawText = "The chain rule is used to find derivatives of composite functions...";
+
+// Create domain model
+const candidate = new ConceptCandidate(batch, rawText, index);
+
+// LLM-powered content extraction
+const distilled = await distillationService.distill(candidate);
+// Result: { title: "Chain Rule for Composite Functions", summary: "The chain rule is a fundamental...", contentHash: "sha256..." }
+```
+
+**Key Components**:
+- `ConceptCandidate`: Domain model with normalization and validation
+- `OpenAIDistillationService`: GPT-3.5-turbo extracts structured title/summary
+- `DistilledContent`: Validated output schema with content hash for deduplication
+
+#### Phase 2: EMBED - Vector Generation  
+```typescript
+// Generate single vector combining title and summary
+const embeddings = await embeddingService.embed(distilled);
+
+// OpenAI text-embedding-3-small (1536 dimensions)
+const combinedText = `${distilled.title}\n\n${distilled.summary}`;
+const vector = await openai.embeddings.create({
+  model: "text-embedding-3-small",
+  input: combinedText
+});
+```
+
+**Key Components**:
+- `OpenAIEmbeddingService`: Single API call for cost efficiency (50% reduction vs dual vectors)
+- `VectorEmbeddings`: 1536-dimensional vector with metadata and content hash
+- Caching layer for repeated content to reduce API costs
+
+#### Phase 3: ROUTE - Intelligent Placement
+```typescript
+// Multi-step routing process
+const duplicateCheck = await duplicateDetector.checkForDuplicates(embeddings);
+if (duplicateCheck.isDuplicate) {
+  return createDuplicateDecision(duplicateCheck);
+}
+
+const folderMatches = await vectorIndex.searchByContext(embeddings);
+const folderScores = await scoringService.scoreFolders(folderMatches);
+const decision = await decisionMaker.makeDecision(folderScores, config);
+
+// Multi-folder placement logic
+if (decision.confidence > config.routing.multifolderThreshold) {
+  decision.placements = {
+    primary: topFolder,           // Highest similarity (source of truth)
+    references: referenceFolders, // Above threshold but not primary
+    confidences: scoreMap         // Similarity scores for each placement
+  };
+}
+```
+
+**Key Components**:
+- `DuplicateDetectionService`: High-precision title similarity check (0.9+ threshold)
+- `QdrantVectorIndexManager`: Vector similarity search across existing concepts
+- `FolderScoringService`: Multi-factor scoring (average similarity, max similarity, concept count)
+- `RoutingDecisionMaker`: Threshold-based decisions with confidence scoring
+
+### Service Orchestration Pattern
+
+The system follows a clear orchestration pattern where higher-level services coordinate lower-level specialized services:
+
+```typescript
+// High-level orchestration (SmartRouter)
+class SmartRouter implements ISmartRouter {
+  async route(candidate: ConceptCandidate): Promise<RoutingDecision> {
+    const result = await this.pipeline.execute(candidate);
+    this.metricsCollector.recordRoutingDecision(result.decision);
+    return result.decision;
+  }
+}
+
+// Workflow coordination (RoutingPipeline) 
+class RoutingPipeline {
+  async execute(candidate: ConceptCandidate): Promise<PipelineResult> {
+    const distilled = await this.distillationService.distill(candidate);
+    const embeddings = await this.embeddingService.embed(distilled);
+    
+    const duplicateCheck = await this.duplicateDetector.checkForDuplicates(embeddings);
+    if (duplicateCheck.isDuplicate) return this.createResult(duplicateCheck.decision!);
+    
+    const folderMatches = await this.folderMatchingService.findBestFolders(embeddings);
+    const decision = await this.decisionMaker.makeDecision(folderMatches, embeddings, distilled);
+    
+    return this.createResult(decision, { distilled, embeddings, folderMatches });
+  }
+}
+
+// Specialized business logic (focused services)
+class DuplicateDetectionService {
+  async checkForDuplicates(embeddings: VectorEmbeddings): Promise<DuplicateCheckResult> {
+    // Focused solely on duplicate detection logic
+  }
+}
+```
+
+This pattern ensures:
+- **Single Responsibility**: Each service has one clear purpose
+- **Testability**: Each service can be tested in isolation
+- **Maintainability**: Changes are localized to specific services
+- **Readability**: The code tells a story of business process flow
+
+---
 
 ## Detailed File-by-File Analysis
 
@@ -94,9 +316,9 @@ TITLE_SEARCH_LIMIT=15
 	 ```
 
 **Recent Updates**:
-- ✅ Single vector system (removed `titleVector`, `contextVector`)
-- ✅ Multi-folder routing support in `RoutingInfoSchema`
-- ✅ Quality measurement system removed
+- Single vector system (removed `titleVector`, `contextVector`)
+- Multi-folder routing support in `RoutingInfoSchema`
+- Quality measurement system removed
 
 #### `repositories.ts` (180 lines)
 **Purpose**: Repository interface definitions following Clean Architecture
@@ -122,7 +344,7 @@ TITLE_SEARCH_LIMIT=15
 **Key Methods**:
 - `normalize()` - Text normalization pipeline
 - `getId()` - Deterministic ID generation
-- `validateInput()` - Business rule validation (quality measurement removed ✅)
+- `validateInput()` - Business rule validation (quality measurement removed)
 - `getContentHash()` - Content-based hashing for deduplication
 
 **Normalization Pipeline**:
@@ -179,7 +401,7 @@ private static readonly CONSTRAINTS = {
 #### `IEmbeddingService.ts` (120 lines) - **UPDATED**
 **Purpose**: Vector generation service interface
 **Key Method**: `embed(distilled: DistilledContent): Promise<VectorEmbeddings>`
-**Updated**: Single vector approach (was dual vector ✅)
+**Updated**: Single vector approach (was dual vector)
 **Implementations**: OpenAI, local transformer models
 
 #### `ISmartRouter.ts` (150 lines)
@@ -192,7 +414,7 @@ private static readonly CONSTRAINTS = {
 #### `IVectorIndexManager.ts` (200 lines) - **UPDATED**
 **Purpose**: Vector storage and similarity search
 **Key Methods**:
-- `searchByTitle()`, `searchByContext()` - Updated to single vector ✅
+- `searchByTitle()`, `searchByContext()` - Updated to single vector
 - `addConcept()`, `updateConcept()` - Concept management
 - `getFolderMembers()`, `updateFolderCentroid()` - Folder operations
 
@@ -210,14 +432,14 @@ private static readonly CONSTRAINTS = {
 
 #### New Interfaces for Enhanced Smart Trigger System:
 
-#### `IFolderExpansionService.ts` (150 lines) - **NEW** ⭐
+#### `IFolderExpansionService.ts` (150 lines) - **NEW**
 **Purpose**: Folder expansion orchestration
 **Key Methods**:
 - `shouldTriggerExpansion()` - Size-based trigger detection
 - `analyzeForExpansion()` - Expansion analysis
 - `expandFolder()` - Execute expansion
 
-#### `ILLMFolderAnalysisService.ts` (200 lines) - **NEW** ⭐
+#### `ILLMFolderAnalysisService.ts` (200 lines) - **NEW**
 **Purpose**: LLM-powered folder analysis
 **Key Methods**:
 - `analyzeForSubfolders()` - Subfolder suggestions
@@ -225,7 +447,7 @@ private static readonly CONSTRAINTS = {
 - `analyzeDuplicates()` - Duplicate cleanup
 - `suggestPlacement()` - Ambiguous concept placement
 
-#### `IDuplicateCleanupService.ts` (180 lines) - **NEW** ⭐
+#### `IDuplicateCleanupService.ts` (180 lines) - **NEW**
 **Purpose**: Two-layer duplicate management
 **Key Methods**:
 - `checkDuplicate()` - Layer 1: Immediate prevention
@@ -234,9 +456,9 @@ private static readonly CONSTRAINTS = {
 
 ### Service Implementations (`src/core/services/impl/`)
 
-#### `SmartRouter.ts` (688 lines) - **MAIN ORCHESTRATOR** ⭐
+#### `SmartRouter.ts` (688 lines) - **MAIN ORCHESTRATOR**
 **Purpose**: Complete routing pipeline orchestration
-**Updated**: Single vector system, multi-folder routing ✅
+**Updated**: Single vector system, multi-folder routing
 **Key Methods**:
 - `route()` - Main routing entry point
 - `executeRoutingPipeline()` - DISTILL → EMBED → ROUTE flow
@@ -270,7 +492,7 @@ const response = await this.openai.chat.completions.create({
 });
 ```
 
-#### `OpenAIEmbeddingService.ts` (150 lines) - **UPDATED** ✅
+#### `OpenAIEmbeddingService.ts` (150 lines) - **UPDATED**
 **Purpose**: Single vector generation using OpenAI embeddings
 **Updated**: Combined title + summary into single vector (50% cost reduction)
 **Features**:
@@ -289,7 +511,7 @@ const response = await this.generateEmbedding(`${distilled.title}\n\n${distilled
 
 #### `QdrantVectorIndexManager.ts` (320 lines) - **UPDATED**
 **Purpose**: Vector storage using Qdrant vector database
-**Updated**: Single collection architecture (was three collections ✅)
+**Updated**: Single collection architecture (was three collections)
 **Collections**:
 - `concepts` - Single vector per concept (was separate title/context collections)
 - `folder_centroids` - Folder representation vectors
@@ -326,7 +548,7 @@ const response = await this.generateEmbedding(`${distilled.title}\n\n${distilled
 - `SmartRouter.test.ts` (400+ lines) - Complete router testing
 - `OpenAIEmbeddingService.test.ts` (200+ lines) - Embedding service testing
 - `QdrantVectorIndexManager.test.ts` (300+ lines) - Vector operations testing
-- `PipelineIntegration.test.ts` (200+ lines) - **UPDATED** to single vector system ✅
+- `PipelineIntegration.test.ts` (200+ lines) - **UPDATED** to single vector system
 
 ### Storage Layer (`src/core/storage/`)
 
@@ -361,7 +583,7 @@ static calculateConceptCountBonus(count, config): number
 
 ## Data Flow Architecture
 
-### Current Pipeline (Single Vector System ✅)
+### Current Pipeline (Single Vector System)
 ```
 ConceptCandidate 
 		↓ DISTILL (OpenAIDistillationService)
@@ -466,7 +688,7 @@ Let's trace a concept through the entire system to understand how every componen
 ```typescript
 // Raw input validated against BatchSchema
 const batch = BatchSchema.parse(rawInput);
-// ✅ Passes: batchId is valid UUID, entries array is valid, etc.
+// Passes: batchId is valid UUID, entries array is valid, etc.
 
 // Zod ensures type safety and runtime validation:
 // - batchId must be valid UUID
@@ -493,9 +715,9 @@ const normalized = candidate.normalize();
 // Input:  "The chain rule is used to find derivatives of composite functions..."
 // Output: "the chain rule is used to find derivatives of composite functions"
 
-// Business validation (quality checks were removed ✅)
+// Business validation (quality checks were removed)
 const isValid = candidate.validateInput();
-// ✅ Passes: text length > 10, word count > 3, etc.
+// Passes: text length > 10, word count > 3, etc.
 ```
 
 ### Step 3: SmartRouter Orchestration (`SmartRouter.ts`)
@@ -536,7 +758,7 @@ const distilled = {
 	contentHash: "sha256_of_normalized_text"
 };
 
-// Validated against DistilledContentSchema ✅
+// Validated against DistilledContentSchema
 ```
 
 ### Step 5: EMBED - Vector Generation (`OpenAIEmbeddingService.ts`)
@@ -544,7 +766,7 @@ const distilled = {
 // Router calls embedding service  
 const embeddings = await embeddingService.embed(distilled);
 
-// Single API call combining title + summary (was dual vectors ✅)
+// Single API call combining title + summary (was dual vectors)
 const combinedText = `${distilled.title}\n\n${distilled.summary}`;
 const response = await openai.embeddings.create({
 	model: "text-embedding-3-small",
@@ -561,7 +783,7 @@ const embeddings = {
 	embeddedAt: new Date()
 };
 
-// Validated against VectorEmbeddingsSchema ✅
+// Validated against VectorEmbeddingsSchema
 ```
 
 ### Step 6: ROUTE - Similarity Search (`QdrantVectorIndexManager.ts`)
@@ -635,7 +857,7 @@ const decision = {
 	timestamp: new Date()
 };
 
-// Validated against RoutingDecision schema ✅
+// Validated against RoutingDecision schema
 ```
 
 ### Step 8: Storage Preparation (Back in SmartRouter)
@@ -676,7 +898,7 @@ const artifact: ConceptArtifact = {
 	version: "1.0"
 };
 
-// Validated against ConceptArtifactSchema ✅
+// Validated against ConceptArtifactSchema
 ```
 
 ### Step 9: Persistence (`FileSystemArtifactRepository.ts`)
@@ -730,15 +952,15 @@ await vectorIndex.updateFolderCentroid(artifact.routing.finalPath);
 ### Final Result: Complete Knowledge Organization
 
 ```
-📁 knowledge-base/
-└── 📁 Mathematics/
-		└── 📁 Calculus/
-				├── 📁 Derivatives/
-				│   ├── 📄 chain-rule-composite-functions.json ← Primary placement
-				│   └── 📄 .folder-manifest.json
-				└── 📁 Functions/  
-						├── 📄 chain-rule-composite-functions.json ← Secondary placement (symlink)
-						└── 📄 .folder-manifest.json
+knowledge-base/
+└── Mathematics/
+		└── Calculus/
+				├── Derivatives/
+				│   ├── chain-rule-composite-functions.json ← Primary placement
+				│   └── .folder-manifest.json
+				└── Functions/  
+						├── chain-rule-composite-functions.json ← Secondary placement (symlink)
+						└── .folder-manifest.json
 ```
 
 ### Configuration Throughout the Pipeline
@@ -815,4 +1037,4 @@ Every step is type-safe, configurable, testable, and follows clean architecture 
 
 This codebase represents a production-quality, clean architecture implementation of an intelligent concept routing system. Every file has a clear purpose, follows established patterns, and is thoroughly tested. The single vector system provides cost efficiency while the multi-folder routing improves content discoverability. The foundation is solid and ready for the Enhanced Smart Trigger System implementation.
 
-**Current State**: ✅ **PRODUCTION READY WITH COMPREHENSIVE DOCUMENTATION**
+**Current State**: **PRODUCTION READY WITH COMPREHENSIVE DOCUMENTATION**

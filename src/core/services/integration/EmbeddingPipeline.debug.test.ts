@@ -76,7 +76,7 @@ describe(' EMBEDDING PIPELINE DEBUG', () => {
       const distilled = await distillService.distill(normalized);
       
       console.log(`    Title: "${distilled.title}"`);
-      console.log(`   📄 Summary: "${distilled.summary.substring(0, 100)}..."`);
+      console.log(`   Summary: "${distilled.summary.substring(0, 100)}..."`);
       
       // Step 2: Embedding 
       console.log('   🔄 Embedding...');

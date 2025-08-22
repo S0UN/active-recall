@@ -244,7 +244,7 @@ describe(' COMPLETE PIPELINE TEST: Raw OCR → Intelligent Folders', () => {
 
     // STEP 1: Simulate raw OCR text coming from browser extension
     const rawOcrText = REALISTIC_OCR_SAMPLES.mathTextbook;
-    console.log(`📄 Raw OCR input (${rawOcrText.length} characters):`);
+    console.log(`Raw OCR input (${rawOcrText.length} characters):`);
     console.log(`   "${rawOcrText.substring(0, 100)}..."`);
 
     // STEP 2: Create batch from OCR (simulating browser extension)
