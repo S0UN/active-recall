@@ -168,7 +168,7 @@ export class ExpansionDetectionService {
     return `${parentFolderId}-subcluster-${cluster.length}`;
   }
 
-  private calculateSubclusterCoherence(cluster: any[]): number {
+  private calculateSubclusterCoherence(_cluster: any[]): number {
     // Simplified coherence calculation
     return 0.8; // Placeholder
   }

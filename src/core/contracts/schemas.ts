@@ -190,6 +190,7 @@ export const ContentSchema = z.object({
   normalized: z.string().min(1, "Field cannot be empty"),
   enhancedSummary: z.string().optional(),
   quizSeeds: z.array(z.string()).optional(),
+  generatedQuestions: z.array(z.string()).optional(), // References to generated question IDs
 });
 
 /**
@@ -459,6 +460,133 @@ export const AuditEventSchema = z.object({
 });
 
 // =============================================================================
+// QUESTION GENERATION SCHEMAS - Educational content question generation
+// =============================================================================
+
+/**
+ * Question types for educational review
+ */
+export const QuestionTypeSchema = z.enum([
+  'flashcard',
+  'multiple_choice', 
+  'short_answer',
+  'true_false',
+  'fill_blank',
+  'concept_map'
+]);
+
+/**
+ * Question difficulty levels aligned with spaced repetition
+ */
+export const QuestionDifficultySchema = z.enum([
+  'beginner',
+  'intermediate', 
+  'advanced',
+  'review'
+]);
+
+/**
+ * Individual generated question with comprehensive metadata
+ */
+export const GeneratedQuestionSchema = z.object({
+  id: z.string().min(1, "Question ID cannot be empty"),
+  type: QuestionTypeSchema,
+  difficulty: QuestionDifficultySchema,
+  question: z.string().min(10, "Question text too short").max(1000, "Question text too long"),
+  correctAnswer: z.union([z.string(), z.array(z.string())]).refine(
+    (val) => Array.isArray(val) ? val.length > 0 : val.length > 0,
+    "Correct answer cannot be empty"
+  ),
+  distractors: z.array(z.string()).optional(),
+  explanation: z.string().max(2000, "Explanation too long").optional(),
+  conceptArea: z.string().min(1, "Concept area cannot be empty"),
+  learningObjective: z.string().max(500, "Learning objective too long").optional(),
+  estimatedTimeSeconds: z.number().int().min(5).max(600).optional(),
+  tags: z.array(z.string()).optional(),
+  sourceContentHash: z.string().min(1, "Source content hash cannot be empty"),
+  confidence: z.number().min(0).max(1).optional(),
+  metadata: z.object({
+    model: z.string().min(1, "Model name cannot be empty"),
+    promptVersion: z.string().min(1, "Prompt version cannot be empty"),
+    tokensUsed: z.number().int().min(0),
+    generatedAt: z.date(),
+  }).optional(),
+});
+
+/**
+ * Question generation request configuration
+ */
+export const QuestionGenerationRequestSchema = z.object({
+  conceptId: z.string().min(1, "Concept ID cannot be empty"),
+  conceptTitle: z.string().min(1, "Concept title cannot be empty"),
+  conceptSummary: z.string().min(10, "Concept summary too short"),
+  sourceContentHash: z.string().min(1, "Source content hash cannot be empty"),
+  count: z.number().int().min(1).max(20).default(5),
+  questionTypes: z.array(QuestionTypeSchema).optional(),
+  targetDifficulty: QuestionDifficultySchema.optional(),
+  performanceContext: z.object({
+    easeFactor: z.number().min(1.3).max(3.0),
+    repetitions: z.number().int().min(0),
+    lastResponseQuality: z.number().min(0).max(3),
+    averageResponseTime: z.number().min(0).optional(),
+  }).optional(),
+  additionalContext: z.string().max(1000, "Additional context too long").optional(),
+  learningGoals: z.array(z.string()).optional(),
+  existingQuestions: z.array(z.string()).optional(),
+});
+
+/**
+ * Question generation result with processing metadata
+ */
+export const QuestionGenerationResultSchema = z.object({
+  questions: z.array(GeneratedQuestionSchema),
+  requestedCount: z.number().int().min(1),
+  generatedCount: z.number().int().min(0),
+  metadata: z.object({
+    processingTimeMs: z.number().min(0),
+    tokensUsed: z.number().int().min(0),
+    model: z.string().min(1, "Model name cannot be empty"),
+    promptVersion: z.string().min(1, "Prompt version cannot be empty"),
+    cached: z.boolean(),
+  }),
+  warnings: z.array(z.string()).optional(),
+  qualityScore: z.number().min(0).max(1).optional(),
+}).refine(
+  data => data.generatedCount === data.questions.length,
+  "Generated count must match questions array length"
+);
+
+/**
+ * User response to a generated question
+ */
+export const QuestionResponseSchema = z.object({
+  questionId: z.string().min(1, "Question ID cannot be empty"),
+  userAnswer: z.union([z.string(), z.array(z.string())]),
+  isCorrect: z.boolean(),
+  responseTimeMs: z.number().int().min(0),
+  answeredAt: z.date(),
+  userConfidence: z.number().min(0).max(1).optional(),
+  feedback: z.string().max(1000, "Feedback too long").optional(),
+});
+
+/**
+ * Question review session for spaced repetition integration
+ */
+export const QuestionReviewSessionSchema = z.object({
+  sessionId: z.string().min(1, "Session ID cannot be empty"),
+  conceptId: z.string().min(1, "Concept ID cannot be empty"),
+  questions: z.array(GeneratedQuestionSchema).min(1, "Session must have at least one question"),
+  startedAt: z.date(),
+  completedAt: z.date().optional(),
+  responses: z.array(QuestionResponseSchema).optional(),
+  sessionScore: z.number().min(0).max(1).optional(),
+  totalTimeMs: z.number().int().min(0).optional(),
+}).refine(
+  data => !data.completedAt || data.completedAt >= data.startedAt,
+  "Completion time must be after start time"
+);
+
+// =============================================================================
 // TYPE EXPORTS - TypeScript types inferred from schemas
 // =============================================================================
 
@@ -488,3 +616,12 @@ export type DistilledContent = z.infer<typeof DistilledContentSchema>;
 export type VectorEmbeddings = z.infer<typeof VectorEmbeddingsSchema>;
 export type ExtractedConcept = z.infer<typeof ExtractedConceptSchema>;
 export type MultiConceptDistillation = z.infer<typeof MultiConceptDistillationSchema>;
+
+// Question generation types
+export type QuestionType = z.infer<typeof QuestionTypeSchema>;
+export type QuestionDifficulty = z.infer<typeof QuestionDifficultySchema>;
+export type GeneratedQuestion = z.infer<typeof GeneratedQuestionSchema>;
+export type QuestionGenerationRequest = z.infer<typeof QuestionGenerationRequestSchema>;
+export type QuestionGenerationResult = z.infer<typeof QuestionGenerationResultSchema>;
+export type QuestionResponse = z.infer<typeof QuestionResponseSchema>;
+export type QuestionReviewSession = z.infer<typeof QuestionReviewSessionSchema>;

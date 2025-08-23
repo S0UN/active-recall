@@ -10,7 +10,6 @@ import { ConceptCandidate } from '../../domain/ConceptCandidate';
 import { DistilledContent, VectorEmbeddings } from '../../contracts/schemas';
 import { IDistillationService } from '../IDistillationService';
 import { IEmbeddingService } from '../IEmbeddingService';
-import { IVectorIndexManager } from '../IVectorIndexManager';
 import { RoutingDecision, RoutingPipelineError } from '../ISmartRouter';
 import { DuplicateDetectionService } from './DuplicateDetectionService';
 import { FolderMatchingService } from './FolderMatchingService';
@@ -37,7 +36,6 @@ export class RoutingPipeline {
   constructor(
     private readonly distillationService: IDistillationService,
     private readonly embeddingService: IEmbeddingService,
-    private readonly vectorIndex: IVectorIndexManager,
     dependencies: {
       duplicateDetector: DuplicateDetectionService;
       folderMatcher: FolderMatchingService;
@@ -146,7 +144,7 @@ export class RoutingPipeline {
     };
   }
 
-  private createStageError(stage: string, message: string, error: unknown): RoutingPipelineError {
+  private createStageError(stage: 'distill' | 'embed' | 'route', message: string, error: unknown): RoutingPipelineError {
     return new RoutingPipelineError(
       stage,
       message,
@@ -154,13 +152,13 @@ export class RoutingPipeline {
     );
   }
 
-  private handlePipelineError(error: unknown, context: PipelineContext): RoutingPipelineError {
+  private handlePipelineError(error: unknown, _context: PipelineContext): RoutingPipelineError {
     if (error instanceof RoutingPipelineError) {
       return error;
     }
     
     return new RoutingPipelineError(
-      'pipeline',
+      'route',
       'Unexpected error during pipeline execution',
       error instanceof Error ? error : new Error(String(error))
     );

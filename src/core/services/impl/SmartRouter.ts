@@ -16,19 +16,17 @@ import {
   SmartRouterConfig,
   RoutingDecision,
   BatchRoutingResult,
-  ConceptCluster,
   FolderSuggestion,
   RoutingPipelineError
 } from '../ISmartRouter';
 import { IDistillationService } from '../IDistillationService';
 import { IEmbeddingService } from '../IEmbeddingService';
-import { IVectorIndexManager, SimilarConcept } from '../IVectorIndexManager';
-import { DistilledContent, VectorEmbeddings } from '../../contracts/schemas';
+import { IVectorIndexManager } from '../IVectorIndexManager';
 import { ConceptCandidate } from '../../domain/ConceptCandidate';
 import { loadPipelineConfig, PipelineConfig } from '../../config/PipelineConfig';
 
 // Extracted services for clean separation of concerns
-import { RoutingPipeline, PipelineResult } from './RoutingPipeline';
+import { RoutingPipeline } from './RoutingPipeline';
 import { RoutingMetricsCollector } from './RoutingMetricsCollector';
 import { DuplicateDetectionService } from './DuplicateDetectionService';
 import { FolderMatchingService } from './FolderMatchingService';
@@ -50,7 +48,7 @@ export class SmartRouter implements ISmartRouter {
     distillService: IDistillationService,
     embeddingService: IEmbeddingService,
     vectorIndex: IVectorIndexManager,
-    config?: Partial<SmartRouterConfig>,
+    _config?: Partial<SmartRouterConfig>,
     pipelineConfig?: PipelineConfig
   ) {
     this.pipelineConfig = pipelineConfig || loadPipelineConfig();
@@ -64,7 +62,6 @@ export class SmartRouter implements ISmartRouter {
     this.pipeline = new RoutingPipeline(
       distillService,
       embeddingService,
-      vectorIndex,
       { duplicateDetector, folderMatcher, decisionMaker }
     );
     

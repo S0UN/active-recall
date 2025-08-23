@@ -28,6 +28,8 @@ export interface RoutingDecision {
   readonly duplicateId?: string;
   readonly confidence: number;
   readonly explanation: RoutingExplanation;
+  readonly crossLinks?: any[]; // TODO: Define proper CrossLink interface
+  readonly requiresReview?: boolean;
   readonly timestamp: Date;
 }
 

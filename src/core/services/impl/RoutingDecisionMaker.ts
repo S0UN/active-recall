@@ -8,13 +8,16 @@
 
 import { DistilledContent, VectorEmbeddings } from '../../contracts/schemas';
 import { RoutingDecision, RoutingExplanation } from '../ISmartRouter';
+import { ConceptSummary } from '../IRoutingDecisionMaker';
+import { SimilarConcept } from '../IVectorIndexManager';
 import { PipelineConfig } from '../../config/PipelineConfig';
 import { FolderMatch } from './FolderMatchingService';
 
 export interface DecisionThresholds {
   highConfidence: number;
   lowConfidence: number;
-  folderPlacement: number;
+  newTopic: number;
+  duplicate: number;
   crossLinkDelta: number;
   crossLinkMinimum: number;
 }
@@ -32,7 +35,8 @@ export class RoutingDecisionMaker {
     this.thresholds = {
       highConfidence: config.routing.highConfidenceThreshold,
       lowConfidence: config.routing.lowConfidenceThreshold,
-      folderPlacement: config.routing.folderPlacementThreshold,
+      newTopic: config.routing.newTopicThreshold || 0.3,
+      duplicate: config.routing.duplicateThreshold || 0.95,
       crossLinkDelta: 0.1, // TODO: Add to config
       crossLinkMinimum: 0.6 // TODO: Add to config
     };
@@ -43,7 +47,7 @@ export class RoutingDecisionMaker {
    */
   async makeDecision(
     folderMatches: FolderMatch[],
-    embeddings: VectorEmbeddings,
+    _embeddings: VectorEmbeddings,
     distilled: DistilledContent
   ): Promise<RoutingDecision> {
     if (this.hasNoMatches(folderMatches)) {
@@ -118,7 +122,7 @@ export class RoutingDecisionMaker {
 
   private qualifiesForSecondaryPlacement(score: number, primaryScore: number): boolean {
     const delta = primaryScore - score;
-    return score >= this.thresholds.folderPlacement && 
+    return score >= this.thresholds.newTopic && 
            delta <= this.thresholds.crossLinkDelta;
   }
 
@@ -160,7 +164,7 @@ export class RoutingDecisionMaker {
     };
   }
 
-  private createLowConfidenceDecision(folderMatches: FolderMatch[]): RoutingDecision {
+  private createLowConfidenceDecision(_folderMatches: FolderMatch[]): RoutingDecision {
     return this.createUnsortedDecision('Low confidence matches only');
   }
 
@@ -181,6 +185,7 @@ export class RoutingDecisionMaker {
     
     return {
       primarySignal: `High confidence match (${confidencePercentage}%)`,
+      similarConcepts: this.formatSimilarConcepts(topMatch.similarConcepts),
       folderMatches: this.formatFolderMatches([topMatch]),
       decisionFactors: [
         `Primary folder: ${topMatch.folderId}`,
@@ -200,6 +205,7 @@ export class RoutingDecisionMaker {
     
     return {
       primarySignal: `Medium confidence match (${confidencePercentage}%) - review recommended`,
+      similarConcepts: this.formatSimilarConcepts(topMatch.similarConcepts),
       folderMatches: this.formatFolderMatches([topMatch]),
       decisionFactors: [
         `Concept: "${distilled.title}"`,
@@ -213,6 +219,7 @@ export class RoutingDecisionMaker {
   private buildUnsortedExplanation(reason: string): RoutingExplanation {
     return {
       primarySignal: 'Routing to unsorted folder',
+      similarConcepts: [],
       folderMatches: [],
       decisionFactors: [reason]
     };
@@ -250,5 +257,13 @@ export class RoutingDecisionMaker {
     return placements
       .filter(p => p.type === 'secondary')
       .map(p => p.path);
+  }
+
+  private formatSimilarConcepts(similarConcepts: SimilarConcept[]): ConceptSummary[] {
+    return (similarConcepts || []).map(concept => ({
+      conceptId: concept.conceptId,
+      title: concept.metadata?.title || 'Unknown Concept',
+      similarity: concept.similarity
+    }));
   }
 }

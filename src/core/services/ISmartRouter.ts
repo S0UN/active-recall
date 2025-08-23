@@ -39,6 +39,8 @@ export interface RoutingDecision {
   suggestedFolderName?: string;
   confidence: number;
   explanation: RoutingExplanation;
+  crossLinks?: any[]; // TODO: Define proper CrossLink interface
+  requiresReview?: boolean;
   timestamp: Date;
 }
 

@@ -626,21 +626,6 @@ export class QdrantVectorIndexManager implements IVectorIndexManager {
     };
   }
 
-  /**
-   * Map search hit to SimilarConcept with folder context
-   */
-  private mapFolderSearchHitToSimilarConcept(hit: any, searchedFolderId: string): SimilarConcept {
-    const payload = hit.payload || {};
-    const isPrimary = this.determineIfPrimaryFolder(payload, searchedFolderId);
-    
-    return {
-      conceptId: this.extractOriginalId(payload) || String(hit.id),
-      similarity: hit.score || 1.0,
-      folderId: searchedFolderId,
-      isPrimary,
-      metadata: payload
-    };
-  }
 
   /**
    * Map scroll hit to SimilarConcept with folder context (no similarity score)

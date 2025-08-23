@@ -86,7 +86,8 @@ export class BatchProcessingService {
       const cluster: ConceptCluster = {
         concepts: [results[i].context.candidate.id],
         centroid: results[i].context.embeddings!.vector,
-        coherence: 1.0
+        coherence: 1.0,
+        suggestedAction: 'route_together'
       };
 
       // Find similar concepts
